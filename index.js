@@ -1,79 +1,99 @@
 client.on("messageCreate", async (message) => {
-  if (message.author.bot) return;
-  if (!message.guild) return;
-  if (message.content !== "!bonushesapla") return;
+  try {
+    if (message.author.bot) return;
+    if (!message.guild) return;
 
-  // 🔒 Yetki kontrolü
-  const yetkiliMi = message.member.roles.cache.some(
-    role => role.name === YETKILI_ROL
-  );
+    if (!message.content.toLowerCase().startsWith("!bonushesapla")) return;
 
-  if (!yetkiliMi) {
-    return message.reply("❌ Bu komutu kullanamazsın.");
-  }
+    console.log("✅ !bonushesapla ALGILANDI");
 
-  const kanal = message.channel;
-
-  // 📥 Son 50 mesajı çek
-  const mesajlar = await kanal.messages.fetch({ limit: 50 });
-
-  // 🤖 En son bot hesaplama mesajını bul
-  const sonHesaplama = mesajlar.find(m =>
-    m.author.id === client.user.id &&
-    m.content.includes("BizzWar Bonus")
-  );
-
-  let hedefMesaj = null;
-
-  for (const mesaj of mesajlar.values()) {
-    // Eğer önceki hesaplama varsa, ondan öncekileri alma
-    if (sonHesaplama && mesaj.createdTimestamp <= sonHesaplama.createdTimestamp) {
-      continue;
-    }
-
-    // Bot mesajlarını geç
-    if (mesaj.author.bot) continue;
-
-    // Format kontrolü
-    const satirlar = mesaj.content.split("\n");
-    const uygunMu = satirlar.some(s => /^.+\s+\d+$/.test(s));
-
-    if (uygunMu) {
-      hedefMesaj = mesaj;
-      break;
-    }
-  }
-
-  if (!hedefMesaj) {
-    return message.reply("❌ Son hesaplamadan sonra uygun formatta mesaj bulunamadı.");
-  }
-
-  const satirlar = hedefMesaj.content.split("\n");
-  let sonucMesaji = "🏆 **BizzWar Bonus Sonuçları** 🏆\n\n";
-  let bulundu = false;
-
-  for (const satir of satirlar) {
-    const eslesme = satir.match(/^(.+?)\s+(\d+)$/);
-    if (!eslesme) continue;
-
-    bulundu = true;
-
-    const isim = eslesme[1].trim();
-    const kill = parseInt(eslesme[2]);
-    const para = kill * 150000;
-
-    const uye = message.guild.members.cache.find(
-      m => m.displayName.toLowerCase() === isim.toLowerCase()
+    // 🔒 Yetki kontrolü
+    const yetkiliMi = message.member.roles.cache.some(
+      role => role.name === YETKILI_ROL
     );
 
-    const etiket = uye ? `<@${uye.id}>` : isim;
+    if (!yetkiliMi) {
+      return message.reply("❌ Bu komutu kullanamazsın.");
+    }
 
-    sonucMesaji += `🔫 ${etiket} → **${kill} kill** | 💰 **${para.toLocaleString()}$**\n`;
+    const kanal = message.channel;
+
+    // 📥 Son 100 mesaj
+    const mesajlar = await kanal.messages.fetch({ limit: 100 });
+    const mesajListesi = [...mesajlar.values()].reverse(); // eski → yeni
+
+    // 🤖 En son bot hesaplama mesajı
+    const sonHesaplama = mesajListesi
+      .filter(m => m.author.id === client.user.id)
+      .find(m => m.content.includes("BizzWar Bonus"));
+
+    let hedefMesaj = null;
+
+    for (const mesaj of mesajListesi) {
+      if (
+        sonHesaplama &&
+        mesaj.createdTimestamp <= sonHesaplama.createdTimestamp
+      ) {
+        continue;
+      }
+
+      if (mesaj.author.bot) continue;
+
+      const satirlar = mesaj.content.split("\n");
+      const uygunMu = satirlar.some(s => /^.+\s+\d+$/.test(s.trim()));
+
+      if (uygunMu) {
+        hedefMesaj = mesaj;
+      }
+    }
+
+    if (!hedefMesaj) {
+      return message.reply("❌ Son hesaplamadan sonra uygun formatta mesaj bulunamadı.");
+    }
+
+    const satirlar = hedefMesaj.content.split("\n");
+    let sonucMesaji = "🏆 **BizzWar Bonus Sonuçları** 🏆\n\n";
+    let bulundu = false;
+
+    for (const satir of satirlar) {
+      const eslesme = satir.trim().match(/^(.+?)\s+(\d+)$/);
+      if (!eslesme) continue;
+
+      bulundu = true;
+
+      const isim = eslesme[1].trim();
+      const kill = parseInt(eslesme[2], 10);
+      const para = kill * 150000;
+
+      // 👤 Üye bulma (güçlü yöntem)
+      let uye =
+        message.guild.members.cache.find(
+          m => m.displayName.toLowerCase() === isim.toLowerCase()
+        );
+
+      if (!uye) {
+        try {
+          const members = await message.guild.members.fetch();
+          uye = members.find(
+            m => m.displayName.toLowerCase() === isim.toLowerCase()
+          );
+        } catch {}
+      }
+
+      const etiket = uye ? `<@${uye.id}>` : isim;
+
+      sonucMesaji += `🔫 ${etiket} → **${kill} kill** | 💰 **${para.toLocaleString()}$**\n`;
+    }
+
+    if (!bulundu) {
+      return message.reply("❌ Kill verisi okunamadı.");
+    }
+
+    await kanal.send(sonucMesaji);
+    console.log("✅ Bonus mesajı gönderildi");
+
+  } catch (err) {
+    console.error("❌ Bonus hesaplama hatası:", err);
+    message.reply("❌ Hesaplama sırasında hata oluştu.");
   }
-
-  if (!bulundu) {
-    return message.reply("❌ Kill verisi okunamadı.");
-  }
-
-  kanal.send(sonucMesaji);
 });
