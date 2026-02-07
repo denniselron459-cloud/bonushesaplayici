@@ -1,108 +1,90 @@
-const { 
-  Client, 
-  GatewayIntentBits, 
-  Partials 
-} = require("discord.js");
+const { Client, GatewayIntentBits } = require("discord.js");
 
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent, // 🔴 EN KRİTİK SATIR
-    GatewayIntentBits.GuildMembers
-  ],
-  partials: [Partials.Channel]
+    GatewayIntentBits.MessageContent
+  ]
 });
 
-// ===== AYARLAR =====
-const LEADER_ROLE_ID = "1432722610667655362";
-const DEPUTY_ROLE_ID = "1454564464727949493";
-const KILL_PARA = 150000;
-// ===================
+/* ================== AYARLAR ================== */
+
+// Yetkili ROL ID'leri
+const AUTHORIZED_ROLE_IDS = [
+  "14327226106676553621",
+  "1454564464727949493"
+];
+
+// Komutun çalışacağı kanal
+const CHANNEL_ID = "KANAL_ID";
+
+// Bonus miktarı
+const BONUS_PER_KILL = 150000;
+
+/* ============================================= */
 
 client.once("ready", () => {
-  console.log(`✅ Bot aktif: ${client.user.tag}`);
-});
-
-// 🧪 TEST KOMUTU (SİLME)
-client.on("messageCreate", (message) => {
-  if (message.author.bot) return;
-
-  if (message.content === "!test") {
-    message.reply("✅ Bot mesajları görüyor");
-  }
+  console.log(`Bot aktif: ${client.user.tag}`);
 });
 
 client.on("messageCreate", async (message) => {
   if (message.author.bot) return;
-  if (!message.guild) return;
-
+  if (message.channel.id !== CHANNEL_ID) return;
   if (message.content !== "!bonushesapla") return;
 
-  // 🔒 YETKİ KONTROLÜ
-  const yetkiliMi = message.member.roles.cache.has(LEADER_ROLE_ID)
-    || message.member.roles.cache.has(DEPUTY_ROLE_ID);
+  // Yetki kontrolü (ID ile)
+  const hasPermission = message.member.roles.cache.some(role =>
+    AUTHORIZED_ROLE_IDS.includes(role.id)
+  );
 
-  if (!yetkiliMi) {
+  if (!hasPermission) {
     return message.reply("❌ Bu komutu kullanamazsın.");
   }
 
-  const kanal = message.channel;
+  const messages = await message.channel.messages.fetch({ limit: 100 });
 
-  // 📥 Son 50 mesaj
-  const mesajlar = await kanal.messages.fetch({ limit: 50 });
+  const killMap = new Map();
 
-  // Önceki bot mesajını bul
-  const sonBotMesaji = mesajlar.find(m =>
-    m.author.id === client.user.id &&
-    m.content.includes("BizzWar Bonus")
-  );
+  messages.forEach(msg => {
+    if (msg.author.bot) return;
 
-  let hedefMesaj = null;
+    const lines = msg.content.split("\n");
 
-  for (const msg of mesajlar.values()) {
-    if (sonBotMesaji && msg.createdTimestamp <= sonBotMesaji.createdTimestamp) continue;
-    if (msg.author.bot) continue;
+    lines.forEach(line => {
+      const match = line.match(/(.+?)\s+(\d+)/);
+      if (!match) return;
 
-    if (msg.content.split("\n").some(s => /^.+\s+\d+$/.test(s))) {
-      hedefMesaj = msg;
-      break;
-    }
+      const name = match[1].trim();
+      const kills = parseInt(match[2]);
+
+      if (!isNaN(kills)) {
+        killMap.set(name, (killMap.get(name) || 0) + kills);
+      }
+    });
+  });
+
+  const sorted = [...killMap.entries()]
+    .sort((a, b) => b[1] - a[1]);
+
+  if (sorted.length === 0) {
+    return message.reply("❌ Hesaplanacak veri bulunamadı.");
   }
 
-  if (!hedefMesaj) {
-    return message.reply("❌ Uygun kill listesi bulunamadı.");
-  }
+  let result = "🏆 **BizzWar Bonus Sonuçları** 🏆\n\n";
 
-  const satirlar = hedefMesaj.content.split("\n");
-  let sonuc = "🏆 **BizzWar Bonus Sonuçları** 🏆\n\n";
-  let bulundu = false;
+  sorted.forEach(([name, kills], index) => {
+    const bonus = kills * BONUS_PER_KILL;
 
-  for (const satir of satirlar) {
-    const eslesme = satir.match(/^(.+?)\s+(\d+)$/);
-    if (!eslesme) continue;
+    let emoji = "🔹";
+    if (index === 0) emoji = "🥇";
+    if (index === 1) emoji = "🥈";
+    if (index === 2) emoji = "🥉";
 
-    bulundu = true;
+    result += `${emoji} **${index + 1}.** ${name} → ${kills} kill | 💰 ${bonus.toLocaleString()}$\n`;
+  });
 
-    const isim = eslesme[1].trim();
-    const kill = Number(eslesme[2]);
-    const para = kill * KILL_PARA;
-
-    const uye = message.guild.members.cache.find(
-      m => m.displayName.toLowerCase() === isim.toLowerCase()
-    );
-
-    const etiket = uye ? `<@${uye.id}>` : isim;
-
-    sonuc += `🔫 ${etiket} → **${kill} kill** | 💰 **${para.toLocaleString()}$**\n`;
-  }
-
-  if (!bulundu) {
-    return message.reply("❌ Kill verisi okunamadı.");
-  }
-
-  kanal.send(sonuc);
+  message.channel.send(result);
 });
 
-// 🔑 TOKEN
-client.login(process.env.DISCORD_TOKEN);
+client.login(process.env.BOT_TOKEN);
