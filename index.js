@@ -35,7 +35,7 @@ client.on("messageCreate", async (message) => {
 
   // Yetki kontrolü (ID ile)
   const hasPermission = message.member.roles.cache.some(role =>
-    AUTHORIZED_ROLE_IDS.includes(role.id)
+    AUTHORIZED_ROLE_IDS.includes(1432722610667655362,1454564464727949493)
   );
 
   if (!hasPermission) {
