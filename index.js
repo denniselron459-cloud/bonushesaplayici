@@ -4,87 +4,84 @@ const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildMembers
   ]
 });
 
-/* ================== AYARLAR ================== */
-
-// Yetkili ROL ID'leri
-const AUTHORIZED_ROLE_IDS = [
-  "14327226106676553621",
+// 🔒 Yetkili rol ID’leri
+const YETKILI_ROL_IDS = [
+  "1432722610667655362",
   "1454564464727949493"
 ];
 
-// Komutun çalışacağı kanal
-const CHANNEL_ID = "1426947227208908850";
-
-// Bonus miktarı
-const BONUS_PER_KILL = 150000;
-
-/* ============================================= */
-
-client.once("ready", () => {
-  console.log(`Bot aktif: ${client.user.tag}`);
+client.on("ready", () => {
+  console.log(`✅ Bot aktif: ${client.user.tag}`);
 });
 
 client.on("messageCreate", async (message) => {
   if (message.author.bot) return;
-  if (message.channel.id !== CHANNEL_ID) return;
+  if (!message.guild) return;
   if (message.content !== "!bonushesapla") return;
 
-  // Yetki kontrolü (ID ile)
-  const hasPermission = message.member.roles.cache.some(role =>
-    AUTHORIZED_ROLE_IDS.includes(1432722610667655362,1454564464727949493)
+  // ✅ MEMBER'I ZORLA FETCH
+  const member = await message.guild.members.fetch(message.author.id);
+
+  const yetkiliMi = member.roles.cache.some(role =>
+    YETKILI_ROL_IDS.includes(role.id)
   );
 
-  if (!hasPermission) {
+  if (!yetkiliMi) {
     return message.reply("❌ Bu komutu kullanamazsın.");
   }
 
-  const messages = await message.channel.messages.fetch({ limit: 100 });
+  // 📥 Son 100 mesaj
+  const mesajlar = await message.channel.messages.fetch({ limit: 100 });
+
+  // 🤖 Son bot hesaplama mesajı
+  const sonBotMesaji = mesajlar.find(m =>
+    m.author.bot && m.content.includes("BizzWar Bonus")
+  );
 
   const killMap = new Map();
 
-  messages.forEach(msg => {
-    if (msg.author.bot) return;
+  for (const mesaj of mesajlar.values()) {
+    if (sonBotMesaji && mesaj.createdTimestamp <= sonBotMesaji.createdTimestamp) continue;
+    if (mesaj.author.bot) continue;
 
-    const lines = msg.content.split("\n");
+    const satirlar = mesaj.content.split("\n");
 
-    lines.forEach(line => {
-      const match = line.match(/(.+?)\s+(\d+)/);
-      if (!match) return;
+    for (const satir of satirlar) {
+      const eslesme = satir.match(/^(.+?)\s+(\d+)$/);
+      if (!eslesme) continue;
 
-      const name = match[1].trim();
-      const kills = parseInt(match[2]);
+      const isim = eslesme[1].trim().toLowerCase();
+      const kill = parseInt(eslesme[2]);
 
-      if (!isNaN(kills)) {
-        killMap.set(name, (killMap.get(name) || 0) + kills);
-      }
-    });
-  });
-
-  const sorted = [...killMap.entries()]
-    .sort((a, b) => b[1] - a[1]);
-
-  if (sorted.length === 0) {
-    return message.reply("❌ Hesaplanacak veri bulunamadı.");
+      killMap.set(isim, (killMap.get(isim) || 0) + kill);
+    }
   }
 
-  let result = "🏆 **BizzWar Bonus Sonuçları** 🏆\n\n";
+  if (killMap.size === 0) {
+    return message.reply("❌ Uygun kill verisi bulunamadı.");
+  }
 
-  sorted.forEach(([name, kills], index) => {
-    const bonus = kills * BONUS_PER_KILL;
+  // 🔢 Sıralama
+  const sirali = [...killMap.entries()].sort((a, b) => b[1] - a[1]);
 
-    let emoji = "🔹";
-    if (index === 0) emoji = "🥇";
-    if (index === 1) emoji = "🥈";
-    if (index === 2) emoji = "🥉";
+  let sonuc = "🏆 **BizzWar Bonus Sonuçları** 🏆\n\n";
 
-    result += `${emoji} **${index + 1}.** ${name} → ${kills} kill | 💰 ${bonus.toLocaleString()}$\n`;
+  sirali.forEach(([isim, kill], index) => {
+    const para = kill * 150000;
+    const emoji =
+      index === 0 ? "🥇" :
+      index === 1 ? "🥈" :
+      index === 2 ? "🥉" : "🔫";
+
+    sonuc += `${emoji} **${index + 1}.** ${isim} → **${kill} kill** | 💰 **${para.toLocaleString()}$**\n`;
   });
 
-  message.channel.send(result);
+  message.channel.send(sonuc);
 });
 
-client.login(process.env.BOT_TOKEN);
+client.login(process.env.DISCORD_TOKEN);
