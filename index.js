@@ -1,133 +1,79 @@
-const {
-  Client,
-  GatewayIntentBits,
-  EmbedBuilder,
-} = require("discord.js");
-const sqlite3 = require("sqlite3").verbose();
-
-/* ================== AYARLAR ================== */
-const GUILD_ID = "1426928763857404077";
-const KILL_CHANNEL_ID = "1426947227208908850";
-const RESULT_CHANNEL_ID = "1426947227208908850";
-const BONUS_PER_KILL = 150000;
-/* ============================================= */
-
-if (!process.env.DISCORD_TOKEN) {
-  console.error("❌ DISCORD_TOKEN yok");
-  process.exit(1);
-}
-
-/* ================== DATABASE ================== */
-const db = new sqlite3.Database("./bonus.db");
-
-db.serialize(() => {
-  db.run(`
-    CREATE TABLE IF NOT EXISTS kills (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      killer TEXT,
-      time INTEGER
-    )
-  `);
-
-  db.run(`
-    CREATE TABLE IF NOT EXISTS meta (
-      key TEXT PRIMARY KEY,
-      value TEXT
-    )
-  `);
-});
-
-/* ================== CLIENT ================== */
-const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildMembers,
-  ],
-});
-
-/* ================== KILL OKUMA ================== */
-client.on("messageCreate", (message) => {
-  if (message.channel.id !== KILL_CHANNEL_ID) return;
+client.on("messageCreate", async (message) => {
   if (message.author.bot) return;
+  if (!message.guild) return;
+  if (message.content !== "!bonushesapla") return;
 
-  // örnek: Dennis killed Ahmet
-  const match = message.content.match(/^(.+?)\s+(killed|→)\s+/i);
-  if (!match) return;
-
-  const killer = match[1].trim();
-  db.run(
-    "INSERT INTO kills (killer, time) VALUES (?, ?)",
-    [killer, Date.now()]
-  );
-});
-
-/* ================== ETİKET BUL ================== */
-async function etiketBul(guild, isim) {
-  await guild.members.fetch();
-
-  const lower = isim.toLowerCase();
-
-  const member = guild.members.cache.find((m) =>
-    [m.user.username, m.user.globalName, m.nickname]
-      .filter(Boolean)
-      .some((n) => n.toLowerCase() === lower)
+  // 🔒 Yetki kontrolü
+  const yetkiliMi = message.member.roles.cache.some(
+    role => role.name === YETKILI_ROL
   );
 
-  return member ? `<@${member.id}>` : isim;
-}
+  if (!yetkiliMi) {
+    return message.reply("❌ Bu komutu kullanamazsın.");
+  }
 
-/* ================== BONUS HESAPLAMA ================== */
-async function bonuslariHesapla() {
-  db.get("SELECT value FROM meta WHERE key='last_calc'", async (_, row) => {
-    const lastCalc = row ? Number(row.value) : 0;
+  const kanal = message.channel;
 
-    db.all(
-      "SELECT killer, COUNT(*) as kill FROM kills WHERE time > ? GROUP BY killer",
-      [lastCalc],
-      async (_, rows) => {
-        if (!rows || rows.length === 0) return;
+  // 📥 Son 50 mesajı çek
+  const mesajlar = await kanal.messages.fetch({ limit: 50 });
 
-        const guild = await client.guilds.fetch(GUILD_ID);
+  // 🤖 En son bot hesaplama mesajını bul
+  const sonHesaplama = mesajlar.find(m =>
+    m.author.id === client.user.id &&
+    m.content.includes("BizzWar Bonus")
+  );
 
-        let desc = "";
-        let toplam = 0;
+  let hedefMesaj = null;
 
-        for (let i = 0; i < rows.length; i++) {
-          const r = rows[i];
-          const etiket = await etiketBul(guild, r.killer);
-          const para = r.kill * BONUS_PER_KILL;
-          toplam += para;
+  for (const mesaj of mesajlar.values()) {
+    // Eğer önceki hesaplama varsa, ondan öncekileri alma
+    if (sonHesaplama && mesaj.createdTimestamp <= sonHesaplama.createdTimestamp) {
+      continue;
+    }
 
-          desc += `**${i + 1}.** ${etiket} → ${r.kill} kill • **${para.toLocaleString()}$**\n`;
-        }
+    // Bot mesajlarını geç
+    if (mesaj.author.bot) continue;
 
-        const embed = new EmbedBuilder()
-          .setTitle("💰 BizzWar Bonus Sonuçları")
-          .setDescription(desc)
-          .setFooter({
-            text: `Toplam Dağıtılan: ${toplam.toLocaleString()}$`,
-          })
-          .setColor("Gold")
-          .setTimestamp();
+    // Format kontrolü
+    const satirlar = mesaj.content.split("\n");
+    const uygunMu = satirlar.some(s => /^.+\s+\d+$/.test(s));
 
-        const channel = await client.channels.fetch(RESULT_CHANNEL_ID);
-        await channel.send({ embeds: [embed] });
+    if (uygunMu) {
+      hedefMesaj = mesaj;
+      break;
+    }
+  }
 
-        db.run(
-          "INSERT OR REPLACE INTO meta (key,value) VALUES ('last_calc',?)",
-          [Date.now()]
-        );
-      }
+  if (!hedefMesaj) {
+    return message.reply("❌ Son hesaplamadan sonra uygun formatta mesaj bulunamadı.");
+  }
+
+  const satirlar = hedefMesaj.content.split("\n");
+  let sonucMesaji = "🏆 **BizzWar Bonus Sonuçları** 🏆\n\n";
+  let bulundu = false;
+
+  for (const satir of satirlar) {
+    const eslesme = satir.match(/^(.+?)\s+(\d+)$/);
+    if (!eslesme) continue;
+
+    bulundu = true;
+
+    const isim = eslesme[1].trim();
+    const kill = parseInt(eslesme[2]);
+    const para = kill * 150000;
+
+    const uye = message.guild.members.cache.find(
+      m => m.displayName.toLowerCase() === isim.toLowerCase()
     );
-  });
-}
 
-/* ================== BOT AÇILDI ================== */
-client.once("ready", () => {
-  console.log(`✅ Bot aktif: ${client.user.tag}`);
-  bonuslariHesapla(); // 🔥 ŞİMDİ HESAPLA
+    const etiket = uye ? `<@${uye.id}>` : isim;
+
+    sonucMesaji += `🔫 ${etiket} → **${kill} kill** | 💰 **${para.toLocaleString()}$**\n`;
+  }
+
+  if (!bulundu) {
+    return message.reply("❌ Kill verisi okunamadı.");
+  }
+
+  kanal.send(sonucMesaji);
 });
-
-client.login(process.env.DISCORD_TOKEN);
