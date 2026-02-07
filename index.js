@@ -17,7 +17,7 @@ const AUTHORIZED_ROLE_IDS = [
 ];
 
 // Komutun çalışacağı kanal
-const CHANNEL_ID = "KANAL_ID";
+const CHANNEL_ID = "1426947227208908850";
 
 // Bonus miktarı
 const BONUS_PER_KILL = 150000;
