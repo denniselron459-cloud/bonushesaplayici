@@ -9,28 +9,20 @@ const client = new Client({
   ]
 });
 
-// 🔧 AYARLAR
-const TOKEN = process.env.TOKEN; // Railway Variables
-const KILL_BASI_ODUL = 150000;
-
-// Yetkili roller (isimle kontrol)
-const YETKILI_ROLLER = ["Leader", "Deputy"];
-
-// Referans alınacak başlık
-const REFERANS_BASLIK = "BizzWar Bonus";
-
-client.once("ready", () => {
-  console.log(`✅ Bot aktif: ${client.user.tag}`);
-});
+// 🔴 BURAYA ROL ID'LERİNİ GİR
+const YETKILI_ROL_IDLERI = [
+  "1432722610667655362",
+  "1454564464727949493"
+];
 
 client.on("messageCreate", async (message) => {
   if (message.author.bot) return;
   if (!message.guild) return;
   if (message.content !== "!bonushesapla") return;
 
-  // 🔒 Yetki kontrolü
+  // 🔐 Yetki kontrolü (ROL ID)
   const yetkiliMi = message.member.roles.cache.some(role =>
-    YETKILI_ROLLER.includes(role.name)
+    YETKILI_ROL_IDLERI.includes(role.id)
   );
 
   if (!yetkiliMi) {
@@ -42,21 +34,18 @@ client.on("messageCreate", async (message) => {
   // 📥 Son 100 mesajı çek
   const mesajlar = await kanal.messages.fetch({ limit: 100 });
 
-  // 🧠 REFERANS: En son "BizzWar Bonus" geçen mesaj (kim yazmış önemli değil)
+  // 🧠 REFERANS: Furi'nin attığı son !bonushesapla
   const referansMesaj = mesajlar.find(m =>
-    m.content.includes(REFERANS_BASLIK)
+    m.author.username.toLowerCase().includes("furi") &&
+    m.content === "!bonushesapla"
   );
 
   let hedefMesaj = null;
 
   for (const mesaj of mesajlar.values()) {
-    // Referanstan öncekileri alma
     if (referansMesaj && mesaj.createdTimestamp <= referansMesaj.createdTimestamp) continue;
-
-    // Bot mesajlarını geç
     if (mesaj.author.bot) continue;
 
-    // Kill formatı kontrolü: "isim sayı"
     const satirlar = mesaj.content.split("\n");
     const uygunMu = satirlar.some(s => /^.+\s+\d+$/.test(s));
 
@@ -67,11 +56,11 @@ client.on("messageCreate", async (message) => {
   }
 
   if (!hedefMesaj) {
-    return kanal.send("❌ Referanstan sonra uygun kill listesi bulunamadı.");
+    return message.reply("❌ Referans mesajdan sonra uygun kill listesi bulunamadı.");
   }
 
   const satirlar = hedefMesaj.content.split("\n");
-  let sonuc = `🏆 **${REFERANS_BASLIK} Sonuçları** 🏆\n\n`;
+  let sonucMesaji = "🏆 **BizzWar Bonus Sonuçları** 🏆\n\n";
   let bulundu = false;
 
   for (const satir of satirlar) {
@@ -82,24 +71,22 @@ client.on("messageCreate", async (message) => {
 
     const isim = eslesme[1].trim();
     const kill = parseInt(eslesme[2]);
-    const para = kill * KILL_BASI_ODUL;
+    const para = kill * 150000;
 
-    // 👤 Discord üyesi bul (nickname / username)
     const uye = message.guild.members.cache.find(m =>
-      m.displayName.toLowerCase() === isim.toLowerCase() ||
-      m.user.username.toLowerCase() === isim.toLowerCase()
+      m.displayName.toLowerCase() === isim.toLowerCase()
     );
 
     const etiket = uye ? `<@${uye.id}>` : isim;
 
-    sonuc += `🔫 ${etiket} → **${kill} kill** | 💰 **${para.toLocaleString()}$**\n`;
+    sonucMesaji += `🔫 ${etiket} → **${kill} kill** | 💰 **${para.toLocaleString()}$**\n`;
   }
 
   if (!bulundu) {
-    return kanal.send("❌ Kill verisi okunamadı.");
+    return message.reply("❌ Kill verisi okunamadı.");
   }
 
-  kanal.send(sonuc);
+  kanal.send(sonucMesaji);
 });
 
-client.login(TOKEN);
+client.login(process.env.TOKEN);
