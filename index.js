@@ -19,12 +19,10 @@ function normalizeIsim(str = "") {
 function enYakinUyeyiBul(guild, isim) {
   const hedef = normalizeIsim(isim);
 
-  const adaylar = guild.members.cache.filter(m => {
-    return (
-      normalizeIsim(m.displayName).includes(hedef) ||
-      normalizeIsim(m.user.username).includes(hedef)
-    );
-  });
+  const adaylar = guild.members.cache.filter(m =>
+    normalizeIsim(m.displayName).includes(hedef) ||
+    normalizeIsim(m.user.username).includes(hedef)
+  );
 
   if (!adaylar.size) return null;
 
@@ -76,7 +74,7 @@ client.on("messageCreate", async (message) => {
       return message.reply("❌ Bu komutu kullanamazsın.");
     }
 
-    // 🔄 TÜM ÜYELERİ CACHE’E AL
+    // 🔄 cache
     await message.guild.members.fetch();
 
     /* =======================
@@ -87,10 +85,10 @@ client.on("messageCreate", async (message) => {
     let bulundu = false;
 
     while (!bulundu) {
-      const options = { limit: 100 };
-      if (lastId) options.before = lastId;
+      const opt = { limit: 100 };
+      if (lastId) opt.before = lastId;
 
-      const fetched = await message.channel.messages.fetch(options);
+      const fetched = await message.channel.messages.fetch(opt);
       if (!fetched.size) break;
 
       for (const msg of fetched.values()) {
@@ -103,12 +101,8 @@ client.on("messageCreate", async (message) => {
       lastId = fetched.last().id;
     }
 
-    if (!tumMesajlar.length) {
-      return message.reply("❌ Hesaplanacak mesaj bulunamadı.");
-    }
-
     /* =======================
-       📊 KILL HESABI
+       📊 HESAPLAMA
     ======================= */
     const killMap = new Map();
 
@@ -137,18 +131,20 @@ client.on("messageCreate", async (message) => {
       return message.reply("❌ Kill bulunamadı.");
     }
 
-    /* =======================
-       🏆 SIRALA
-    ======================= */
     const sirali = [...killMap.entries()].sort((a, b) => b[1] - a[1]);
 
     /* =======================
-       📤 TEK MESAJ ÇIKTI
+       🏆 BAŞLIK
     ======================= */
-    let sonuc = "🏆 **BIZZWAR WIN KILLS** 🏆\n\n";
+    await message.channel.send("🏆 **BIZZWAR WIN KILLS** 🏆");
 
-    sirali.forEach(([isim, kill], i) => {
+    /* =======================
+       📤 HER KİŞİ AYRI MESAJ
+    ======================= */
+    for (let i = 0; i < sirali.length; i++) {
+      const [isim, kill] = sirali[i];
       const para = kill * KILL_UCRETI;
+
       const emoji =
         i === 0 ? "🥇" :
         i === 1 ? "🥈" :
@@ -156,22 +152,19 @@ client.on("messageCreate", async (message) => {
 
       let gosterim = isim;
 
-      // 🔗 ETİKETLEME (ALT KOD GİBİ)
       let uye = message.guild.members.cache.find(m =>
         normalizeIsim(m.displayName) === isim ||
         normalizeIsim(m.user.username) === isim
       );
 
       if (!uye) uye = enYakinUyeyiBul(message.guild, isim);
-
       if (uye) gosterim = `<@${uye.id}>`;
 
-      sonuc +=
+      await message.channel.send(
         `${emoji} **${i + 1}.** ${gosterim}\n` +
-        `🔫 Kill: **${kill}** | 💰 **${para.toLocaleString()}$**\n\n`;
-    });
-
-    await message.channel.send(sonuc);
+        `🔫 Kill: **${kill}** | 💰 **${para.toLocaleString()}$**`
+      );
+    }
 
   } catch (err) {
     console.error("❌ HATA:", err);
