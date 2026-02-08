@@ -14,6 +14,26 @@ function normalizeIsim(str = "") {
 }
 
 /* =======================
+   🔍 EN YAKIN ÜYE
+======================= */
+function enYakinUyeyiBul(guild, isim) {
+  const hedef = normalizeIsim(isim);
+
+  const adaylar = guild.members.cache.filter(m => {
+    return (
+      normalizeIsim(m.displayName).includes(hedef) ||
+      normalizeIsim(m.user.username).includes(hedef)
+    );
+  });
+
+  if (!adaylar.size) return null;
+
+  return adaylar
+    .sort((a, b) => a.displayName.length - b.displayName.length)
+    .first();
+}
+
+/* =======================
    🤖 CLIENT
 ======================= */
 const client = new Client({
@@ -33,14 +53,8 @@ const YETKILI_ROL_IDS = [
   "1454564464727949493"
 ];
 
-const REFERANS_MESAJ_ID = "1467301119867879454";
-const KATILIM_UCRETI = 70000;
-const KILL_UCRETI = 40000;
-
-/* =======================
-   💳 ÖDENENLER
-======================= */
-const odenenler = new Set();
+const REFERANS_MESAJ_ID = "1467279907766927588";
+const KILL_UCRETI = 150000;
 
 /* =======================
    🚀 READY
@@ -50,35 +64,20 @@ client.once("ready", () => {
 });
 
 /* =======================
-   📩 KOMUTLAR
+   📩 KOMUT
 ======================= */
 client.on("messageCreate", async (message) => {
   try {
     if (message.author.bot || !message.guild) return;
-
-    const args = message.content.split(" ");
-    const komut = args[0];
+    if (message.content !== "!bonushesapla") return;
 
     const yetkili = await message.guild.members.fetch(message.author.id);
-    if (!yetkili.roles.cache.some(r => YETKILI_ROL_IDS.includes(r.id))) return;
-
-    /* =======================
-       💳 !odendi / !iptal
-    ======================= */
-    if (komut === "!odendi" || komut === "!iptal") {
-      const hedef = message.mentions.members.first();
-      if (!hedef) return message.reply("❌ Kişi etiketle.");
-
-      if (komut === "!odendi") {
-        odenenler.add(hedef.id);
-        return message.reply(`✅ **${hedef.displayName}** ödendi.`);
-      } else {
-        odenenler.delete(hedef.id);
-        return message.reply(`♻️ **${hedef.displayName}** ödeme iptal edildi.`);
-      }
+    if (!yetkili.roles.cache.some(r => YETKILI_ROL_IDS.includes(r.id))) {
+      return message.reply("❌ Bu komutu kullanamazsın.");
     }
 
-    if (komut !== "!bonushesapla") return;
+    // 🔄 TÜM ÜYELERİ CACHE’E AL
+    await message.guild.members.fetch();
 
     /* =======================
        📥 MESAJLARI ÇEK
@@ -104,63 +103,75 @@ client.on("messageCreate", async (message) => {
       lastId = fetched.last().id;
     }
 
+    if (!tumMesajlar.length) {
+      return message.reply("❌ Hesaplanacak mesaj bulunamadı.");
+    }
+
     /* =======================
-       📊 HESAPLAMA
+       📊 KILL HESABI
     ======================= */
-    const data = new Map();
+    const killMap = new Map();
 
     for (const msg of tumMesajlar) {
       if (msg.author.bot) continue;
-      if (!msg.attachments.size) continue; // 📸 kanıt zorunlu
-
-      const key = normalizeIsim(msg.author.username);
-
-      if (!data.has(key)) {
-        data.set(key, {
-          id: msg.author.id,
-          tag: `<@${msg.author.id}>`,
-          katilim: 0,
-          kill: 0
-        });
-      }
-
-      const user = data.get(key);
-      user.katilim += msg.attachments.size;
 
       for (const satir of msg.content.split("\n")) {
-        const match = satir.match(/(\d{1,2})\s*(k|kill|kills)/i);
-        if (match) {
-          const k = parseInt(match[1]);
-          if (k > 0 && k <= 50) user.kill += k;
-        }
+        const temiz = satir.trim();
+        if (!temiz) continue;
+
+        const match = temiz.match(/(\d+)\s*$/);
+        if (!match) continue;
+
+        const kill = parseInt(match[1]);
+        if (isNaN(kill)) continue;
+
+        const isimParca = temiz.slice(0, match.index).trim();
+        if (!isimParca) continue;
+
+        const key = normalizeIsim(isimParca);
+        killMap.set(key, (killMap.get(key) || 0) + kill);
       }
     }
 
-    const sonucList = [...data.values()].map(u => ({
-      ...u,
-      para: u.katilim * KATILIM_UCRETI + u.kill * KILL_UCRETI
-    }));
-
-    sonucList.sort((a, b) => b.para - a.para);
-
-    /* =======================
-       🏆 BAŞLIK
-    ======================= */
-    await message.channel.send("🏆 **STATE CONTROL BONUS** 🏆");
-
-    /* =======================
-       📤 HER KİŞİ AYRI MESAJ
-    ======================= */
-    for (let i = 0; i < sonucList.length; i++) {
-      const u = sonucList[i];
-      const emoji = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : "🔫";
-      const paid = odenenler.has(u.id) ? " ✅ **ÖDENDİ**" : "";
-
-      await message.channel.send(
-        `${emoji} **${i + 1}.** ${u.tag}\n` +
-        `👥 Katılım: **${u.katilim}** | 🔫 Kill: **${u.kill}** | 💰 **${u.para.toLocaleString()}$**${paid}`
-      );
+    if (!killMap.size) {
+      return message.reply("❌ Kill bulunamadı.");
     }
+
+    /* =======================
+       🏆 SIRALA
+    ======================= */
+    const sirali = [...killMap.entries()].sort((a, b) => b[1] - a[1]);
+
+    /* =======================
+       📤 TEK MESAJ ÇIKTI
+    ======================= */
+    let sonuc = "🏆 **BIZZWAR WIN KILLS** 🏆\n\n";
+
+    sirali.forEach(([isim, kill], i) => {
+      const para = kill * KILL_UCRETI;
+      const emoji =
+        i === 0 ? "🥇" :
+        i === 1 ? "🥈" :
+        i === 2 ? "🥉" : "🔫";
+
+      let gosterim = isim;
+
+      // 🔗 ETİKETLEME (ALT KOD GİBİ)
+      let uye = message.guild.members.cache.find(m =>
+        normalizeIsim(m.displayName) === isim ||
+        normalizeIsim(m.user.username) === isim
+      );
+
+      if (!uye) uye = enYakinUyeyiBul(message.guild, isim);
+
+      if (uye) gosterim = `<@${uye.id}>`;
+
+      sonuc +=
+        `${emoji} **${i + 1}.** ${gosterim}\n` +
+        `🔫 Kill: **${kill}** | 💰 **${para.toLocaleString()}$**\n\n`;
+    });
+
+    await message.channel.send(sonuc);
 
   } catch (err) {
     console.error("❌ HATA:", err);
