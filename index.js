@@ -1,100 +1,105 @@
-const { Client, GatewayIntentBits } = require("discord.js");
+const { Client, GatewayIntentBits, Partials } = require("discord.js");
 
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent
-  ]
+    GatewayIntentBits.MessageContent,
+  ],
+  partials: [Partials.Message, Partials.Channel],
 });
 
-// AYARLAR
-const BONUS_CHANNEL_ID = "KANAL_ID";
-const KATILIM_PARASI = 50000;
-const KILL_PARASI = 10000;
+const START_MESSAGE_ID = "1467301119867879454";
+const BONUS_CHANNEL_ID = "1426947679103094824";
 
-// KILL ALGILAMA REGEX
-const KILL_REGEX = /(\d+)\s*(k|kill|kills)/i;
+function extractKills(text) {
+  if (!text) return 0;
+  text = text.toLowerCase();
+
+  let total = 0;
+
+  const regexes = [
+    /(\d+)\s*kills?/g,
+    /(\d+)\s*kill/g,
+    /(\d+)\s*k\b/g,
+    /kill bonus[:\s]*(\d+)/g,
+  ];
+
+  for (const r of regexes) {
+    let m;
+    while ((m = r.exec(text)) !== null) {
+      total += parseInt(m[1]);
+    }
+  }
+
+  return total;
+}
+
+client.once("ready", () => {
+  console.log(`${client.user.tag} hazır`);
+});
 
 client.on("messageCreate", async (message) => {
-  if (message.author.bot) return;
+  if (!message.content.startsWith("!hesapla")) return;
   if (message.channel.id !== BONUS_CHANNEL_ID) return;
-  if (!message.content.startsWith("!bonushesapla")) return;
 
-  const messages = await message.channel.messages.fetch({ limit: 100 });
-  const users = new Map();
+  const channel = message.channel;
+  const messages = await channel.messages.fetch({ limit: 100 });
+
+  const startMsg = await channel.messages.fetch(START_MESSAGE_ID);
+
+  const data = {};
 
   for (const msg of messages.values()) {
-    if (msg.author.bot) continue;
+    if (msg.createdTimestamp <= startMsg.createdTimestamp) continue;
 
-    // 📌 KANIT KONTROLÜ
-    const hasImage = msg.attachments.size > 0;
-    const hasLink = /(https?:\/\/)/i.test(msg.content);
+    // 🔴 reply zorunlu
+    if (!msg.reference) continue;
+    if (msg.reference.messageId !== START_MESSAGE_ID) continue;
 
-    if (!hasImage && !hasLink) continue; // ❌ kanıt yoksa YOK SAY
+    // 🔴 kanıt zorunlu
+    if (msg.attachments.size === 0) continue;
 
     const userId = msg.author.id;
-
-    if (!users.has(userId)) {
-      users.set(userId, {
+    if (!data[userId]) {
+      data[userId] = {
         user: msg.author,
         katilim: 0,
         kill: 0,
-        proofs: []
-      });
+      };
     }
 
-    const data = users.get(userId);
+    // 📸 her foto = 1 katılım
+    data[userId].katilim += msg.attachments.size;
 
-    // 📸 HER FOTO = 1 KATILIM
-    const imageCount = msg.attachments.size;
-    data.katilim += imageCount > 0 ? imageCount : 1;
-
-    // 🎯 KILL ALGILAMA
-    const match = msg.content.match(KILL_REGEX);
-    if (match) {
-      const killCount = parseInt(match[1]);
-      if (!isNaN(killCount)) {
-        data.kill += killCount;
-      }
-    }
-
-    // 📎 KANIT SAKLA
-    msg.attachments.forEach(a => data.proofs.push(a.url));
-    if (hasLink) {
-      const links = msg.content.match(/https?:\/\/\S+/gi);
-      if (links) data.proofs.push(...links);
-    }
+    // 🔫 kill algılama
+    data[userId].kill += extractKills(msg.content);
   }
 
-  // ❌ SADECE KILL VAR AMA KATILIM YOKSA SİL
-  const finalList = [...users.values()].filter(u => u.katilim > 0);
-
-  // 💰 PARA HESABI
-  finalList.forEach(u => {
-    u.money = (u.katilim * KATILIM_PARASI) + (u.kill * KILL_PARASI);
+  // 🔽 sıralama (para mantığı)
+  const list = Object.values(data).sort((a, b) => {
+    if (b.katilim !== a.katilim) return b.katilim - a.katilim;
+    return b.kill - a.kill;
   });
 
-  // 🥇 EN ÇOK PARA ALAN ÜSTE
-  finalList.sort((a, b) => b.money - a.money);
-
-  const medals = ["🥇", "🥈", "🥉"];
-
-  if (finalList.length === 0) {
-    return message.channel.send("❌ Geçerli kanıt bulunamadı.");
+  if (list.length === 0) {
+    return channel.send("❌ Geçerli kanıt bulunamadı.");
   }
 
-  // 🧾 HER SATIRI AYRI MESAJ AT
-  for (let i = 0; i < finalList.length; i++) {
-    const u = finalList[i];
-    const emoji = medals[i] || "🎯";
+  // 📨 HER SATIR AYRI MESAJ
+  let rank = 1;
+  for (const p of list) {
+    let emoji = "💵";
+    if (rank === 1) emoji = "🥇";
+    else if (rank === 2) emoji = "🥈";
+    else if (rank === 3) emoji = "🥉";
 
-    await message.channel.send(
-      `${emoji} **${i + 1}. ${u.user}**\n` +
-      `📊 **${u.katilim} katılım – ${u.kill} öldürme**\n` +
-      `💰 **${u.money.toLocaleString()}$**`
+    await channel.send(
+      `${emoji} **${rank}. ${p.user}** → ${p.katilim} katılım ${p.kill} öldürme`
     );
+
+    rank++;
   }
 });
 
-client.login("DISCORD_TOKEN");
+client.login(process.env.DISCORD_TOKEN);
