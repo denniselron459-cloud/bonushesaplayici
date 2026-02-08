@@ -52,7 +52,7 @@ const YETKILI_ROL_IDS = [
 ];
 
 const REFERANS_MESAJ_ID = "1467283526360760340";
-const KILL_UCRETI = 5000; // 🔻 LOSE BONUS
+const KILL_UCRETI = 35000;
 
 /* =======================
    🚀 READY
@@ -135,7 +135,7 @@ client.on("messageCreate", async (message) => {
     /* =======================
        🏆 BAŞLIK
     ======================= */
-    await message.channel.send("🏆 **BIZZWAR LOSE KILLS** 🏆");
+    await message.channel.send("🏆 **FOUNDRY KILLS** 🏆");
 
     let toplamBonus = 0;
 
