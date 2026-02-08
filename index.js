@@ -85,14 +85,9 @@ client.on("messageCreate", async (message) => {
        💳 !odendi
     ======================= */
     if (komut === "!odendi") {
-      if (!args[1]) return message.reply("❌ Kullanım: `!odendi @kişi` veya `!odendi isim`");
-
-      await message.guild.members.fetch();
-
       let hedef =
         message.mentions.members.first() ||
         enYakinUyeyiBul(message.guild, args.slice(1).join(" "));
-
       if (!hedef) return message.reply("❌ Kişi bulunamadı.");
 
       odenenler.add(hedef.id);
@@ -103,14 +98,9 @@ client.on("messageCreate", async (message) => {
        🔄 !iptal
     ======================= */
     if (komut === "!iptal") {
-      if (!args[1]) return message.reply("❌ Kullanım: `!iptal @kişi` veya `!iptal isim`");
-
-      await message.guild.members.fetch();
-
       let hedef =
         message.mentions.members.first() ||
         enYakinUyeyiBul(message.guild, args.slice(1).join(" "));
-
       if (!hedef) return message.reply("❌ Kişi bulunamadı.");
 
       odenenler.delete(hedef.id);
@@ -122,17 +112,16 @@ client.on("messageCreate", async (message) => {
     ======================= */
     if (komut !== "!bonushesapla") return;
 
-    await message.guild.members.fetch();
-
     let tumMesajlar = [];
     let lastId = null;
     let bulundu = false;
 
     while (!bulundu) {
-      const options = { limit: 100 };
-      if (lastId) options.before = lastId;
+      const fetched = await message.channel.messages.fetch({
+        limit: 100,
+        before: lastId || undefined
+      });
 
-      const fetched = await message.channel.messages.fetch(options);
       if (!fetched.size) break;
 
       for (const msg of fetched.values()) {
@@ -142,7 +131,6 @@ client.on("messageCreate", async (message) => {
           break;
         }
       }
-
       lastId = fetched.last().id;
     }
 
@@ -158,12 +146,29 @@ client.on("messageCreate", async (message) => {
       ) continue;
 
       const yazar = normalizeIsim(mesaj.author.username);
-
       if (!data.has(yazar)) data.set(yazar, { katilim: 0, kill: 0 });
+
+      // HER MESAJ = 1 KATILIM
       data.get(yazar).katilim += 1;
 
       for (const satir of mesaj.content.split("\n")) {
-        const match = satir.match(/^(.+?)[\s:.-]+(\d{1,3})\s*(k|kill|kills)?$/i);
+        const temiz = satir.trim().toLowerCase();
+
+        /* 🔥 SADECE "1 kill" / "2 k" */
+        const solo = temiz.match(/^(\d{1,3})\s*(k|kill|kills)$/i);
+        if (solo) {
+          const kill = parseInt(solo[1]);
+          if (kill > 0 && kill <= 50) {
+            data.get(yazar).kill += kill;
+            data.get(yazar).katilim += 1;
+          }
+          continue;
+        }
+
+        /* 🔥 "isim 3 kill" */
+        const match = satir.match(
+          /^(.+?)[\s:.-]+(\d{1,3})\s*(k|kill|kills)$/i
+        );
         if (!match) continue;
 
         const isim = normalizeIsim(match[1]);
@@ -178,10 +183,12 @@ client.on("messageCreate", async (message) => {
     }
 
     const sonucList = [];
-
     for (const [isim, d] of data.entries()) {
-      const para = d.katilim * KATILIM_UCRETI + d.kill * KILL_UCRETI;
-      sonucList.push({ isim, ...d, para });
+      sonucList.push({
+        isim,
+        ...d,
+        para: d.katilim * KATILIM_UCRETI + d.kill * KILL_UCRETI
+      });
     }
 
     sonucList.sort((a, b) => b.para - a.para);
@@ -190,28 +197,19 @@ client.on("messageCreate", async (message) => {
 
     sonucList.forEach((u, i) => {
       const emoji = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : "🔫";
-      let uye = enYakinUyeyiBul(message.guild, u.isim);
-      const odenmis = uye && odenenler.has(uye.id) ? " ✅ **ÖDENDİ**" : "";
+      const uye = enYakinUyeyiBul(message.guild, u.isim);
+      const paid = uye && odenenler.has(uye.id) ? " ✅ **ÖDENDİ**" : "";
       const gosterim = uye ? `<@${uye.id}>` : u.isim;
 
-      sonuc += `${emoji} **${i + 1}.** ${gosterim} → **${u.katilim} katılım ${u.kill} öldürme : ${u.para.toLocaleString()}$**${odenmis}\n`;
+      sonuc += `${emoji} **${i + 1}.** ${gosterim} → **${u.katilim} katılım ${u.kill} öldürme : ${u.para.toLocaleString()}$**${paid}\n`;
     });
 
-    const LIMIT = 1900;
-    let buffer = "";
-
-    for (const satir of sonuc.split("\n")) {
-      if ((buffer + satir).length > LIMIT) {
-        await message.channel.send(buffer);
-        buffer = "";
-      }
-      buffer += satir + "\n";
+    for (const chunk of sonuc.match(/[\s\S]{1,1900}/g)) {
+      await message.channel.send(chunk);
     }
 
-    if (buffer.length) await message.channel.send(buffer);
-
   } catch (err) {
-    console.error("❌ HATA:", err);
+    console.error(err);
     message.reply("❌ Bir hata oluştu.");
   }
 });
