@@ -14,19 +14,6 @@ function normalizeIsim(str = "") {
 }
 
 /* =======================
-   🔍 EN YAKIN ÜYE BUL
-======================= */
-function enYakinUyeyiBul(guild, isim) {
-  const hedef = normalizeIsim(isim);
-  const adaylar = guild.members.cache.filter(m =>
-    normalizeIsim(m.displayName).includes(hedef) ||
-    normalizeIsim(m.user.username).includes(hedef)
-  );
-  if (!adaylar.size) return null;
-  return adaylar.sort((a, b) => a.displayName.length - b.displayName.length).first();
-}
-
-/* =======================
    🤖 CLIENT
 ======================= */
 const client = new Client({
@@ -79,13 +66,8 @@ client.on("messageCreate", async (message) => {
        💳 !odendi / !iptal
     ======================= */
     if (komut === "!odendi" || komut === "!iptal") {
-      await message.guild.members.fetch();
-
-      const hedef =
-        message.mentions.members.first() ||
-        enYakinUyeyiBul(message.guild, args.slice(1).join(" "));
-
-      if (!hedef) return message.reply("❌ Kişi bulunamadı.");
+      const hedef = message.mentions.members.first();
+      if (!hedef) return message.reply("❌ Kişi etiketle.");
 
       if (komut === "!odendi") {
         odenenler.add(hedef.id);
@@ -113,46 +95,51 @@ client.on("messageCreate", async (message) => {
       if (!fetched.size) break;
 
       for (const msg of fetched.values()) {
-        tumMesajlar.push(msg);
-        if (msg.id === REFERANS_MESAJ_ID) {
+        if (BigInt(msg.id) <= BigInt(REFERANS_MESAJ_ID)) {
           bulundu = true;
           break;
         }
+        tumMesajlar.push(msg);
       }
       lastId = fetched.last().id;
     }
 
+    /* =======================
+       📊 HESAPLAMA
+    ======================= */
     const data = new Map();
 
     for (const msg of tumMesajlar) {
       if (msg.author.bot) continue;
-      if (BigInt(msg.id) <= BigInt(REFERANS_MESAJ_ID)) continue;
-      if (!msg.attachments.size) continue; // 📸 KANIT ZORUNLU
+      if (!msg.attachments.size) continue; // 📸 kanıt zorunlu
 
-      const yazar = normalizeIsim(msg.author.username);
-      if (!data.has(yazar)) data.set(yazar, { katilim: 0, kill: 0 });
+      const key = normalizeIsim(msg.author.username);
 
-      data.get(yazar).katilim += 1;
+      if (!data.has(key)) {
+        data.set(key, {
+          id: msg.author.id,
+          tag: `<@${msg.author.id}>`,
+          katilim: 0,
+          kill: 0
+        });
+      }
+
+      const user = data.get(key);
+      user.katilim += msg.attachments.size;
 
       for (const satir of msg.content.split("\n")) {
         const match = satir.match(/(\d{1,2})\s*(k|kill|kills)/i);
-        if (!match) continue;
-
-        const kill = parseInt(match[1]);
-        if (kill > 0 && kill <= 50) {
-          data.get(yazar).kill += kill;
+        if (match) {
+          const k = parseInt(match[1]);
+          if (k > 0 && k <= 50) user.kill += k;
         }
       }
     }
 
-    const sonucList = [];
-    for (const [isim, d] of data.entries()) {
-      sonucList.push({
-        isim,
-        ...d,
-        para: d.katilim * KATILIM_UCRETI + d.kill * KILL_UCRETI
-      });
-    }
+    const sonucList = [...data.values()].map(u => ({
+      ...u,
+      para: u.katilim * KATILIM_UCRETI + u.kill * KILL_UCRETI
+    }));
 
     sonucList.sort((a, b) => b.para - a.para);
 
@@ -166,14 +153,11 @@ client.on("messageCreate", async (message) => {
     ======================= */
     for (let i = 0; i < sonucList.length; i++) {
       const u = sonucList[i];
-
       const emoji = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : "🔫";
-      const uye = enYakinUyeyiBul(message.guild, u.isim);
-      const isimGoster = uye ? `<@${uye.id}>` : u.isim;
-      const paid = uye && odenenler.has(uye.id) ? " ✅ **ÖDENDİ**" : "";
+      const paid = odenenler.has(u.id) ? " ✅ **ÖDENDİ**" : "";
 
       await message.channel.send(
-        `${emoji} **${i + 1}.** ${isimGoster}\n` +
+        `${emoji} **${i + 1}.** ${u.tag}\n` +
         `👥 Katılım: **${u.katilim}** | 🔫 Kill: **${u.kill}** | 💰 **${u.para.toLocaleString()}$**${paid}`
       );
     }
