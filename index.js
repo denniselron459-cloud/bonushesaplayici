@@ -1,7 +1,7 @@
 const { Client, GatewayIntentBits } = require("discord.js");
 
 /* =======================
-   🔧 NORMALIZE
+   🔧 İSİM NORMALİZASYONU
 ======================= */
 function normalizeIsim(str = "") {
   return str
@@ -14,7 +14,7 @@ function normalizeIsim(str = "") {
 }
 
 /* =======================
-   🔍 EN YAKIN ÜYE
+   🔍 EN YAKIN ÜYE BUL
 ======================= */
 function enYakinUyeyiBul(guild, isim) {
   const hedef = normalizeIsim(isim);
@@ -53,7 +53,6 @@ const YETKILI_ROL_IDS = [
 ];
 
 const REFERANS_MESAJ_ID = "1467301119867879454";
-
 const KATILIM_UCRETI = 70000;
 const KILL_UCRETI = 40000;
 
@@ -86,10 +85,15 @@ client.on("messageCreate", async (message) => {
        💳 !odendi
     ======================= */
     if (komut === "!odendi") {
-      if (!args[1]) return message.reply("❌ Kullanım: `!odendi @kişi`");
+      if (!args[1]) return message.reply("❌ Kullanım: `!odendi @kişi` veya `!odendi isim`");
 
-      const hedef = message.mentions.members.first();
-      if (!hedef) return message.reply("❌ Kişi etiketle.");
+      await message.guild.members.fetch();
+
+      const hedef =
+        message.mentions.members.first() ||
+        enYakinUyeyiBul(message.guild, args.slice(1).join(" "));
+
+      if (!hedef) return message.reply("❌ Kişi bulunamadı.");
 
       odenenler.add(hedef.id);
       return message.reply(`✅ **${hedef.displayName}** ödendi olarak işaretlendi.`);
@@ -99,10 +103,15 @@ client.on("messageCreate", async (message) => {
        🔄 !iptal
     ======================= */
     if (komut === "!iptal") {
-      if (!args[1]) return message.reply("❌ Kullanım: `!iptal @kişi`");
+      if (!args[1]) return message.reply("❌ Kullanım: `!iptal @kişi` veya `!iptal isim`");
 
-      const hedef = message.mentions.members.first();
-      if (!hedef) return message.reply("❌ Kişi etiketle.");
+      await message.guild.members.fetch();
+
+      const hedef =
+        message.mentions.members.first() ||
+        enYakinUyeyiBul(message.guild, args.slice(1).join(" "));
+
+      if (!hedef) return message.reply("❌ Kişi bulunamadı.");
 
       odenenler.delete(hedef.id);
       return message.reply(`♻️ **${hedef.displayName}** ödeme iptal edildi.`);
@@ -154,26 +163,20 @@ client.on("messageCreate", async (message) => {
         data.set(yazar, { katilim: 0, kill: 0 });
       }
 
-      /* 🔹 HER MESAJ = 1 KATILIM */
+      /* ✅ HER MESAJ = 1 KATILIM */
       data.get(yazar).katilim += 1;
 
-      /* 🔹 FOTOĞRAF SAYISI = EKSTRA KATILIM */
-      if (msg.attachments.size > 0) {
-        data.get(yazar).katilim += msg.attachments.size;
-      }
+      /* 🔥 KILL ALGILAMA (ALT SATIR DAHİL) */
+      const satirlar = msg.content.split("\n");
 
-      /* 🔥 KILL ALGILAMA (MESAJ SAHİBİNE) */
-      const killMatch = msg.content.match(/(\d{1,3})\s*(k|kill|kills)/i);
-      if (killMatch) {
-        const kill = parseInt(killMatch[1]);
-        if (kill > 0 && kill <= 50) {
-          data.get(yazar).kill += kill;
+      for (const satir of satirlar) {
+        const match = satir.match(/(\d{1,2})\s*(k|kill|kills)/i);
+        if (!match) continue;
 
-          // kill varsa ama katılım 0 olamaz
-          if (data.get(yazar).katilim === 0) {
-            data.get(yazar).katilim = 1;
-          }
-        }
+        const kill = parseInt(match[1]);
+        if (!kill || kill > 50) continue;
+
+        data.get(yazar).kill += kill;
       }
     }
 
@@ -191,12 +194,15 @@ client.on("messageCreate", async (message) => {
     sonucList.forEach((u, i) => {
       const emoji = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : "🔫";
       const uye = enYakinUyeyiBul(message.guild, u.isim);
-      const paid = uye && odenenler.has(uye.id) ? " ✅ **PAID**" : "";
-      const isim = uye ? `<@${uye.id}>` : u.isim;
+      const paid = uye && odenenler.has(uye.id) ? " ✅ **ÖDENDİ**" : "";
+      const isimGoster = uye ? `<@${uye.id}>` : u.isim;
 
-      sonuc += `${emoji} **${i + 1}.** ${isim} → **${u.katilim} katılım ${u.kill} kill : ${u.para.toLocaleString()}$**${paid}\n`;
+      sonuc += `${emoji} **${i + 1}.** ${isimGoster} → **${u.katilim} katılım ${u.kill} öldürme : ${u.para.toLocaleString()}$**${paid}\n`;
     });
 
+    /* =======================
+       📤 2000 KARAKTER FIX
+    ======================= */
     const LIMIT = 1900;
     let buffer = "";
 
