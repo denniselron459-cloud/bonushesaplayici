@@ -1,228 +1,100 @@
 const { Client, GatewayIntentBits } = require("discord.js");
 
-/* =======================
-   🔧 İSİM NORMALİZASYONU
-======================= */
-function normalizeIsim(str = "") {
-  return str
-    .replace(/[\u200B-\u200D\uFEFF]/g, "")
-    .replace(/\u00A0/g, " ")
-    .toLowerCase()
-    .trim()
-    .replace(/[^\p{L}\p{N} ]/gu, "")
-    .replace(/\s+/g, " ");
-}
-
-/* =======================
-   🔍 EN YAKIN ÜYE BUL
-======================= */
-function enYakinUyeyiBul(guild, isim) {
-  const hedef = normalizeIsim(isim);
-
-  const adaylar = guild.members.cache.filter(m => {
-    const dn = normalizeIsim(m.displayName);
-    const un = normalizeIsim(m.user.username);
-    return dn.includes(hedef) || un.includes(hedef);
-  });
-
-  if (!adaylar.size) return null;
-
-  return adaylar
-    .sort((a, b) => a.displayName.length - b.displayName.length)
-    .first();
-}
-
-/* =======================
-   🤖 CLIENT
-======================= */
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildMembers
+    GatewayIntentBits.MessageContent
   ]
 });
 
-/* =======================
-   ⚙️ AYARLAR
-======================= */
-const YETKILI_ROL_IDS = [
-  "1432722610667655362",
-  "1454564464727949493"
-];
+// AYARLAR
+const BONUS_CHANNEL_ID = "KANAL_ID";
+const KATILIM_PARASI = 50000;
+const KILL_PARASI = 10000;
 
-const REFERANS_MESAJ_ID = "1467301119867879454";
-const KATILIM_UCRETI = 70000;
-const KILL_UCRETI = 40000;
+// KILL ALGILAMA REGEX
+const KILL_REGEX = /(\d+)\s*(k|kill|kills)/i;
 
-/* =======================
-   💳 ÖDENENLER
-======================= */
-const odenenler = new Set();
-
-/* =======================
-   🚀 READY
-======================= */
-client.once("ready", () => {
-  console.log(`✅ Bot aktif: ${client.user.tag}`);
-});
-
-/* =======================
-   📩 KOMUTLAR
-======================= */
 client.on("messageCreate", async (message) => {
-  try {
-    if (message.author.bot || !message.guild) return;
+  if (message.author.bot) return;
+  if (message.channel.id !== BONUS_CHANNEL_ID) return;
+  if (!message.content.startsWith("!bonushesapla")) return;
 
-    const args = message.content.split(" ");
-    const komut = args[0];
+  const messages = await message.channel.messages.fetch({ limit: 100 });
+  const users = new Map();
 
-    const member = await message.guild.members.fetch(message.author.id);
-    if (!member.roles.cache.some(r => YETKILI_ROL_IDS.includes(r.id))) return;
+  for (const msg of messages.values()) {
+    if (msg.author.bot) continue;
 
-    /* =======================
-       💳 !odendi
-    ======================= */
-    if (komut === "!odendi") {
-      if (!args[1]) return message.reply("❌ Kullanım: `!odendi @kişi` veya `!odendi isim`");
+    // 📌 KANIT KONTROLÜ
+    const hasImage = msg.attachments.size > 0;
+    const hasLink = /(https?:\/\/)/i.test(msg.content);
 
-      await message.guild.members.fetch();
+    if (!hasImage && !hasLink) continue; // ❌ kanıt yoksa YOK SAY
 
-      const hedef =
-        message.mentions.members.first() ||
-        enYakinUyeyiBul(message.guild, args.slice(1).join(" "));
+    const userId = msg.author.id;
 
-      if (!hedef) return message.reply("❌ Kişi bulunamadı.");
-
-      odenenler.add(hedef.id);
-      return message.reply(`✅ **${hedef.displayName}** ödendi olarak işaretlendi.`);
+    if (!users.has(userId)) {
+      users.set(userId, {
+        user: msg.author,
+        katilim: 0,
+        kill: 0,
+        proofs: []
+      });
     }
 
-    /* =======================
-       🔄 !iptal
-    ======================= */
-    if (komut === "!iptal") {
-      if (!args[1]) return message.reply("❌ Kullanım: `!iptal @kişi` veya `!iptal isim`");
+    const data = users.get(userId);
 
-      await message.guild.members.fetch();
+    // 📸 HER FOTO = 1 KATILIM
+    const imageCount = msg.attachments.size;
+    data.katilim += imageCount > 0 ? imageCount : 1;
 
-      const hedef =
-        message.mentions.members.first() ||
-        enYakinUyeyiBul(message.guild, args.slice(1).join(" "));
-
-      if (!hedef) return message.reply("❌ Kişi bulunamadı.");
-
-      odenenler.delete(hedef.id);
-      return message.reply(`♻️ **${hedef.displayName}** ödeme iptal edildi.`);
-    }
-
-    /* =======================
-       🧮 !bonushesapla
-    ======================= */
-    if (komut !== "!bonushesapla") return;
-
-    await message.guild.members.fetch();
-
-    let tumMesajlar = [];
-    let lastId = null;
-    let bulundu = false;
-
-    while (!bulundu) {
-      const options = { limit: 100 };
-      if (lastId) options.before = lastId;
-
-      const fetched = await message.channel.messages.fetch(options);
-      if (!fetched.size) break;
-
-      for (const msg of fetched.values()) {
-        tumMesajlar.push(msg);
-        if (msg.id === REFERANS_MESAJ_ID) {
-          bulundu = true;
-          break;
-        }
-      }
-
-      lastId = fetched.last().id;
-    }
-
-    const referansMesaj = tumMesajlar.find(m => m.id === REFERANS_MESAJ_ID);
-    if (!referansMesaj) return message.reply("❌ Referans mesaj bulunamadı.");
-
-    const data = new Map();
-
-    for (const msg of tumMesajlar) {
-      if (
-        msg.author.bot ||
-        msg.createdTimestamp <= referansMesaj.createdTimestamp
-      ) continue;
-
-      const yazar = normalizeIsim(msg.author.username);
-
-      if (!data.has(yazar)) {
-        data.set(yazar, { katilim: 0, kill: 0 });
-      }
-
-      /* ✅ HER MESAJ = 1 KATILIM */
-      data.get(yazar).katilim += 1;
-
-      /* 🔥 KILL ALGILAMA (ALT SATIR DAHİL) */
-      const satirlar = msg.content.split("\n");
-
-      for (const satir of satirlar) {
-        const match = satir.match(/(\d{1,2})\s*(k|kill|kills)/i);
-        if (!match) continue;
-
-        const kill = parseInt(match[1]);
-        if (!kill || kill > 50) continue;
-
-        data.get(yazar).kill += kill;
+    // 🎯 KILL ALGILAMA
+    const match = msg.content.match(KILL_REGEX);
+    if (match) {
+      const killCount = parseInt(match[1]);
+      if (!isNaN(killCount)) {
+        data.kill += killCount;
       }
     }
 
-    const sonucList = [];
-
-    for (const [isim, d] of data.entries()) {
-      const para = d.katilim * KATILIM_UCRETI + d.kill * KILL_UCRETI;
-      sonucList.push({ isim, ...d, para });
+    // 📎 KANIT SAKLA
+    msg.attachments.forEach(a => data.proofs.push(a.url));
+    if (hasLink) {
+      const links = msg.content.match(/https?:\/\/\S+/gi);
+      if (links) data.proofs.push(...links);
     }
+  }
 
-    sonucList.sort((a, b) => b.para - a.para);
+  // ❌ SADECE KILL VAR AMA KATILIM YOKSA SİL
+  const finalList = [...users.values()].filter(u => u.katilim > 0);
 
-    let sonuc = "🏆 **STATE CONTROL BONUS** 🏆\n\n";
+  // 💰 PARA HESABI
+  finalList.forEach(u => {
+    u.money = (u.katilim * KATILIM_PARASI) + (u.kill * KILL_PARASI);
+  });
 
-    sonucList.forEach((u, i) => {
-      const emoji = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : "🔫";
-      const uye = enYakinUyeyiBul(message.guild, u.isim);
-      const paid = uye && odenenler.has(uye.id) ? " ✅ **ÖDENDİ**" : "";
-      const isimGoster = uye ? `<@${uye.id}>` : u.isim;
+  // 🥇 EN ÇOK PARA ALAN ÜSTE
+  finalList.sort((a, b) => b.money - a.money);
 
-      sonuc += `${emoji} **${i + 1}.** ${isimGoster} → **${u.katilim} katılım ${u.kill} öldürme : ${u.para.toLocaleString()}$**${paid}\n`;
-    });
+  const medals = ["🥇", "🥈", "🥉"];
 
-    /* =======================
-       📤 2000 KARAKTER FIX
-    ======================= */
-    const LIMIT = 1900;
-    let buffer = "";
+  if (finalList.length === 0) {
+    return message.channel.send("❌ Geçerli kanıt bulunamadı.");
+  }
 
-    for (const satir of sonuc.split("\n")) {
-      if ((buffer + satir).length > LIMIT) {
-        await message.channel.send(buffer);
-        buffer = "";
-      }
-      buffer += satir + "\n";
-    }
+  // 🧾 HER SATIRI AYRI MESAJ AT
+  for (let i = 0; i < finalList.length; i++) {
+    const u = finalList[i];
+    const emoji = medals[i] || "🎯";
 
-    if (buffer.length) await message.channel.send(buffer);
-
-  } catch (err) {
-    console.error("❌ HATA:", err);
-    message.reply("❌ Bir hata oluştu.");
+    await message.channel.send(
+      `${emoji} **${i + 1}. ${u.user}**\n` +
+      `📊 **${u.katilim} katılım – ${u.kill} öldürme**\n` +
+      `💰 **${u.money.toLocaleString()}$**`
+    );
   }
 });
 
-/* =======================
-   🔑 LOGIN
-======================= */
-client.login(process.env.DISCORD_TOKEN);
+client.login("BOT_TOKEN");
