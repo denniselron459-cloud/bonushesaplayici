@@ -191,7 +191,7 @@ client.on("messageCreate", async (message) => {
     sonucList.forEach((u, i) => {
       const emoji = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : "🔫";
       let uye = enYakinUyeyiBul(message.guild, u.isim);
-      const odenmis = uye && odenenler.has(uye.id) ? " ❌ **ÖDENDİ**" : "";
+      const odenmis = uye && odenenler.has(uye.id) ? " ✅ **ÖDENDİ**" : "";
       const gosterim = uye ? `<@${uye.id}>` : u.isim;
 
       sonuc += `${emoji} **${i + 1}.** ${gosterim} → **${u.katilim} katılım ${u.kill} öldürme : ${u.para.toLocaleString()}$**${odenmis}\n`;
