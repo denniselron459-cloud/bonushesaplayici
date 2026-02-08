@@ -128,12 +128,10 @@ client.on("messageCreate", async (message) => {
         data.set(yazar, { katilim: 0, kill: 0 });
       }
 
-      /* 📸 FOTOĞRAF = KATILIM */
-      const fotoSayisi = mesaj.attachments.size;
-      const katilimEkle = fotoSayisi > 0 ? fotoSayisi : 1;
-      data.get(yazar).katilim += katilimEkle;
+      // ✅ HER MESAJ = 1 KATILIM
+      data.get(yazar).katilim += 1;
 
-      /* 🔥 KILL ALGILAMA */
+      // 🔥 KILL ALGILAMA
       const satirlar = mesaj.content.split("\n");
 
       for (const satir of satirlar) {
@@ -144,7 +142,7 @@ client.on("messageCreate", async (message) => {
 
         const isim = normalizeIsim(match[1]);
         const kill = parseInt(match[2]);
-        if (!kill || kill > 50) continue;
+        if (!kill || kill > 50) continue; // uçuk değer fix
 
         if (!data.has(isim)) {
           data.set(isim, { katilim: 0, kill: 0 });
