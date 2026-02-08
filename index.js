@@ -51,7 +51,7 @@ const YETKILI_ROL_IDS = [
   "1454564464727949493"
 ];
 
-const REFERANS_MESAJ_ID = "1464947378451906725";
+const REFERANS_MESAJ_ID = "1460991119251734707";
 const KILL_UCRETI = 35000;
 
 /* =======================
@@ -135,7 +135,7 @@ client.on("messageCreate", async (message) => {
     /* =======================
        🏆 BAŞLIK
     ======================= */
-    await message.channel.send("🏆 **FOUNDRY KILLS** 🏆");
+    await message.channel.send("🏆 **WEAPON FACTORY KILLS** 🏆");
 
     let toplamBonus = 0;
 
