@@ -80,9 +80,11 @@ client.on("messageCreate", async (message) => {
     ======================= */
     if (komut === "!odendi" || komut === "!iptal") {
       await message.guild.members.fetch();
+
       const hedef =
         message.mentions.members.first() ||
         enYakinUyeyiBul(message.guild, args.slice(1).join(" "));
+
       if (!hedef) return message.reply("❌ Kişi bulunamadı.");
 
       if (komut === "!odendi") {
@@ -125,7 +127,7 @@ client.on("messageCreate", async (message) => {
     for (const msg of tumMesajlar) {
       if (msg.author.bot) continue;
       if (BigInt(msg.id) <= BigInt(REFERANS_MESAJ_ID)) continue;
-      if (!msg.attachments.size) continue; // 📸 kanıt zorunlu
+      if (!msg.attachments.size) continue; // 📸 KANIT ZORUNLU
 
       const yazar = normalizeIsim(msg.author.username);
       if (!data.has(yazar)) data.set(yazar, { katilim: 0, kill: 0 });
@@ -134,11 +136,11 @@ client.on("messageCreate", async (message) => {
 
       for (const satir of msg.content.split("\n")) {
         const match = satir.match(/(\d{1,2})\s*(k|kill|kills)/i);
-        if (match) {
-          const kill = parseInt(match[1]);
-          if (kill > 0 && kill <= 50) {
-            data.get(yazar).kill += kill;
-          }
+        if (!match) continue;
+
+        const kill = parseInt(match[1]);
+        if (kill > 0 && kill <= 50) {
+          data.get(yazar).kill += kill;
         }
       }
     }
@@ -155,27 +157,25 @@ client.on("messageCreate", async (message) => {
     sonucList.sort((a, b) => b.para - a.para);
 
     /* =======================
-       📤 AYRI AYRI MESAJ
+       🏆 BAŞLIK
     ======================= */
     await message.channel.send("🏆 **STATE CONTROL BONUS** 🏆");
 
+    /* =======================
+       📤 HER KİŞİ AYRI MESAJ
+    ======================= */
     for (let i = 0; i < sonucList.length; i++) {
       const u = sonucList[i];
 
-      const emoji =
-        i === 0 ? "🥇" :
-        i === 1 ? "🥈" :
-        i === 2 ? "🥉" : "🔫";
-
+      const emoji = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : "🔫";
       const uye = enYakinUyeyiBul(message.guild, u.isim);
-      const paid = uye && odenenler.has(uye.id) ? " ✅ **ÖDENDİ**" : "";
       const isimGoster = uye ? `<@${uye.id}>` : u.isim;
+      const paid = uye && odenenler.has(uye.id) ? " ✅ **ÖDENDİ**" : "";
 
-      const mesaj =
+      await message.channel.send(
         `${emoji} **${i + 1}.** ${isimGoster}\n` +
-        `➡️ **${u.katilim} katılım | ${u.kill} kill | ${u.para.toLocaleString()}$**${paid}`;
-
-      await message.channel.send(mesaj);
+        `👥 Katılım: **${u.katilim}** | 🔫 Kill: **${u.kill}** | 💰 **${u.para.toLocaleString()}$**${paid}`
+      );
     }
 
   } catch (err) {
