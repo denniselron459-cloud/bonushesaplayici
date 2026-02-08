@@ -101,10 +101,10 @@ client.on("messageCreate", async (message) => {
     }
 
     /* =======================
-       📊 HESAPLAMA
+       📊 HESAPLAMA (FIX)
     ======================= */
     const killMap = new Map();
-    let toplamBonus = 0; // ⭐ TOPLAM
+    let toplamBonus = 0;
 
     for (const msg of tumMesajlar) {
       if (msg.author.bot) continue;
@@ -122,8 +122,24 @@ client.on("messageCreate", async (message) => {
         const isimParca = temiz.slice(0, match.index).trim();
         if (!isimParca) continue;
 
-        const key = normalizeIsim(isimParca);
-        killMap.set(key, (killMap.get(key) || 0) + kill);
+        // 🔑 ÜYE BUL (ID ÖNCELİKLİ)
+        let uye =
+          message.guild.members.cache.find(m =>
+            normalizeIsim(m.displayName) === normalizeIsim(isimParca) ||
+            normalizeIsim(m.user.username) === normalizeIsim(isimParca)
+          ) || enYakinUyeyiBul(message.guild, isimParca);
+
+        const key = uye ? uye.id : normalizeIsim(isimParca);
+
+        if (!killMap.has(key)) {
+          killMap.set(key, {
+            kill: 0,
+            uye,
+            isim: isimParca
+          });
+        }
+
+        killMap.get(key).kill += kill;
       }
     }
 
@@ -131,7 +147,7 @@ client.on("messageCreate", async (message) => {
       return message.reply("❌ Kill bulunamadı.");
     }
 
-    const sirali = [...killMap.entries()].sort((a, b) => b[1] - a[1]);
+    const sirali = [...killMap.values()].sort((a, b) => b.kill - a.kill);
 
     /* =======================
        🏆 BAŞLIK
@@ -142,24 +158,16 @@ client.on("messageCreate", async (message) => {
        📤 KİŞİLER
     ======================= */
     for (let i = 0; i < sirali.length; i++) {
-      const [isim, kill] = sirali[i];
+      const { kill, uye, isim } = sirali[i];
       const para = kill * KILL_UCRETI;
-      toplamBonus += para; // ⭐ TOPLAM
+      toplamBonus += para;
 
       const emoji =
         i === 0 ? "🥇" :
         i === 1 ? "🥈" :
         i === 2 ? "🥉" : "🔫";
 
-      let gosterim = isim;
-
-      let uye = message.guild.members.cache.find(m =>
-        normalizeIsim(m.displayName) === isim ||
-        normalizeIsim(m.user.username) === isim
-      );
-
-      if (!uye) uye = enYakinUyeyiBul(message.guild, isim);
-      if (uye) gosterim = `<@${uye.id}>`;
+      const gosterim = uye ? `<@${uye.id}>` : isim;
 
       await message.channel.send(
         `${emoji} **${i + 1}.** ${gosterim}\n` +
