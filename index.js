@@ -1,7 +1,9 @@
 const { Client, GatewayIntentBits } = require("discord.js");
 
-// 🔧 İSİM NORMALİZASYONU
-function normalizeIsim(str) {
+/* =======================
+   🔧 İSİM NORMALİZASYONU
+======================= */
+function normalizeIsim(str = "") {
   return str
     .replace(/[\u200B-\u200D\uFEFF]/g, "")
     .replace(/\u00A0/g, " ")
@@ -11,7 +13,9 @@ function normalizeIsim(str) {
     .replace(/\s+/g, " ");
 }
 
-// 🔍 EN YAKIN ÜYE BUL
+/* =======================
+   🔍 EN YAKIN ÜYE BUL
+======================= */
 function enYakinUyeyiBul(guild, isim) {
   const hedef = normalizeIsim(isim);
 
@@ -28,7 +32,9 @@ function enYakinUyeyiBul(guild, isim) {
     .first();
 }
 
-// 🤖 BOT
+/* =======================
+   🤖 CLIENT
+======================= */
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -38,21 +44,28 @@ const client = new Client({
   ]
 });
 
-// ⚙️ AYARLAR
+/* =======================
+   ⚙️ AYARLAR
+======================= */
 const YETKILI_ROL_IDS = [
   "1432722610667655362",
   "1454564464727949493"
 ];
 
 const REFERANS_MESAJ_ID = "1467301119867879454";
-
 const KATILIM_UCRETI = 70000;
 const KILL_UCRETI = 40000;
 
+/* =======================
+   🚀 READY
+======================= */
 client.once("ready", () => {
   console.log(`✅ Bot aktif: ${client.user.tag}`);
 });
 
+/* =======================
+   📩 KOMUT
+======================= */
 client.on("messageCreate", async (message) => {
   try {
     if (
@@ -68,7 +81,9 @@ client.on("messageCreate", async (message) => {
 
     await message.guild.members.fetch();
 
-    // 🔥 REFERANS MESAJDAN SONRASINI GÜVENLİ ÇEK
+    /* =======================
+       📥 MESAJLARI GÜVENLİ ÇEK
+    ======================= */
     let tumMesajlar = [];
     let lastId = null;
     let bulundu = false;
@@ -96,38 +111,37 @@ client.on("messageCreate", async (message) => {
       return message.reply("❌ Referans mesaj bulunamadı.");
     }
 
-    // 🧠 VERİ TOPLAMA
+    /* =======================
+       🧠 DATA TOPLA
+    ======================= */
     const data = new Map();
 
     for (const mesaj of tumMesajlar) {
       if (
-        mesaj.createdTimestamp <= referansMesaj.createdTimestamp ||
-        mesaj.author.bot
+        mesaj.author.bot ||
+        mesaj.createdTimestamp <= referansMesaj.createdTimestamp
       ) continue;
 
-      const yazarIsim = normalizeIsim(mesaj.author.username);
+      const yazar = normalizeIsim(mesaj.author.username);
 
-      if (!data.has(yazarIsim)) {
-        data.set(yazarIsim, { katilim: 0, kill: 0 });
+      if (!data.has(yazar)) {
+        data.set(yazar, { katilim: 0, kill: 0 });
       }
 
       // ✅ HER MESAJ = 1 KATILIM
-      data.get(yazarIsim).katilim += 1;
+      data.get(yazar).katilim += 1;
 
-      // 🔫 KILL ALGILAMA
+      // 🔥 KILL ALGILAMA (2k / 2 kill / 2 kills)
       const satirlar = mesaj.content.split("\n");
 
       for (const satir of satirlar) {
-        const temiz = satir.trim();
-        if (!temiz) continue;
-
-        const match = temiz.match(
-          /^(.+?)[\s:.\-]+(\d+)\s*(k|kill|kills)?$/i
+        const match = satir.trim().match(
+          /^(.+?)[\s:.-]+(\d+)\s*(k|kill|kills)?$/i
         );
         if (!match) continue;
 
         const isim = normalizeIsim(match[1]);
-        const kill = parseInt(match[2], 10);
+        const kill = parseInt(match[2]);
         if (isNaN(kill)) continue;
 
         if (!data.has(isim)) {
@@ -142,7 +156,9 @@ client.on("messageCreate", async (message) => {
       return message.reply("❌ Veri bulunamadı.");
     }
 
-    // 💰 PARA HESABI
+    /* =======================
+       💰 HESAPLA
+    ======================= */
     const sonucList = [];
 
     for (const [isim, d] of data.entries()) {
@@ -153,10 +169,12 @@ client.on("messageCreate", async (message) => {
       sonucList.push({ isim, ...d, para });
     }
 
-    // 🥇 PARAYA GÖRE SIRALA
+    // 🥇 EN ÇOK PARA ÜSTE
     sonucList.sort((a, b) => b.para - a.para);
 
-    // 📊 ÇIKTI
+    /* =======================
+       🏆 SONUÇ METNİ
+    ======================= */
     let sonuc = "🏆 **STATE CONTROL BONUS** 🏆\n\n";
 
     sonucList.forEach((u, i) => {
@@ -177,7 +195,23 @@ client.on("messageCreate", async (message) => {
       sonuc += `${emoji} **${i + 1}.** ${gosterim} → **${u.katilim} katılım ${u.kill} öldürme : ${u.para.toLocaleString()}$**\n`;
     });
 
-    await message.channel.send(sonuc);
+    /* =======================
+       📤 2000 KARAKTER FIX
+    ======================= */
+    const LIMIT = 1900;
+    let buffer = "";
+
+    for (const satir of sonuc.split("\n")) {
+      if ((buffer + satir).length > LIMIT) {
+        await message.channel.send(buffer);
+        buffer = "";
+      }
+      buffer += satir + "\n";
+    }
+
+    if (buffer.length) {
+      await message.channel.send(buffer);
+    }
 
   } catch (err) {
     console.error("❌ HATA:", err);
@@ -185,4 +219,7 @@ client.on("messageCreate", async (message) => {
   }
 });
 
+/* =======================
+   🔑 LOGIN
+======================= */
 client.login(process.env.DISCORD_TOKEN);
