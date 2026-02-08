@@ -51,8 +51,8 @@ const YETKILI_ROL_IDS = [
   "1454564464727949493"
 ];
 
-const REFERANS_MESAJ_ID = "1467279907766927588";
-const KILL_UCRETI = 150000;
+const REFERANS_MESAJ_ID = "1467280724297252926";
+const KILL_UCRETI = 35000;
 
 /* =======================
    🚀 READY
@@ -67,14 +67,13 @@ client.once("ready", () => {
 client.on("messageCreate", async (message) => {
   try {
     if (message.author.bot || !message.guild) return;
-    if (message.content !== "!bonushesapla") return;
+    if (message.content !== "!ratinghesapla") return;
 
     const yetkili = await message.guild.members.fetch(message.author.id);
     if (!yetkili.roles.cache.some(r => YETKILI_ROL_IDS.includes(r.id))) {
       return message.reply("❌ Bu komutu kullanamazsın.");
     }
 
-    // 🔄 cache
     await message.guild.members.fetch();
 
     /* =======================
@@ -105,6 +104,7 @@ client.on("messageCreate", async (message) => {
        📊 HESAPLAMA
     ======================= */
     const killMap = new Map();
+    let toplamBonus = 0; // ⭐ TOPLAM
 
     for (const msg of tumMesajlar) {
       if (msg.author.bot) continue;
@@ -136,14 +136,15 @@ client.on("messageCreate", async (message) => {
     /* =======================
        🏆 BAŞLIK
     ======================= */
-    await message.channel.send("🏆 **BIZZWAR WIN KILLS** 🏆");
+    await message.channel.send("🏆 **RATING BATTLE KILL BONUS** 🏆");
 
     /* =======================
-       📤 HER KİŞİ AYRI MESAJ
+       📤 KİŞİLER
     ======================= */
     for (let i = 0; i < sirali.length; i++) {
       const [isim, kill] = sirali[i];
       const para = kill * KILL_UCRETI;
+      toplamBonus += para; // ⭐ TOPLAM
 
       const emoji =
         i === 0 ? "🥇" :
@@ -165,6 +166,13 @@ client.on("messageCreate", async (message) => {
         `🔫 Kill: **${kill}** | 💰 **${para.toLocaleString()}$**`
       );
     }
+
+    /* =======================
+       💰 TOPLAM BONUS
+    ======================= */
+    await message.channel.send(
+      `💰 **TOPLAM DAĞITILACAK BONUS:** **${toplamBonus.toLocaleString()}$**`
+    );
 
   } catch (err) {
     console.error("❌ HATA:", err);
