@@ -28,6 +28,7 @@ function enYakinUyeyiBul(guild, isim) {
     .first();
 }
 
+// 🤖 BOT
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -37,12 +38,14 @@ const client = new Client({
   ]
 });
 
+// ⚙️ AYARLAR
 const YETKILI_ROL_IDS = [
   "1432722610667655362",
   "1454564464727949493"
 ];
 
 const REFERANS_MESAJ_ID = "1467301119867879454";
+
 const KATILIM_UCRETI = 70000;
 const KILL_UCRETI = 40000;
 
@@ -65,7 +68,7 @@ client.on("messageCreate", async (message) => {
 
     await message.guild.members.fetch();
 
-    // 🔥 GÜVENLİ MESAJ ÇEKME (100 LIMIT FIX)
+    // 🔥 REFERANS MESAJDAN SONRASINI GÜVENLİ ÇEK
     let tumMesajlar = [];
     let lastId = null;
     let bulundu = false;
@@ -93,7 +96,7 @@ client.on("messageCreate", async (message) => {
       return message.reply("❌ Referans mesaj bulunamadı.");
     }
 
-    // 🧠 DATA
+    // 🧠 VERİ TOPLAMA
     const data = new Map();
 
     for (const mesaj of tumMesajlar) {
@@ -108,23 +111,23 @@ client.on("messageCreate", async (message) => {
         data.set(yazarIsim, { katilim: 0, kill: 0 });
       }
 
-      // ✅ KATILIM
+      // ✅ HER MESAJ = 1 KATILIM
       data.get(yazarIsim).katilim += 1;
 
+      // 🔫 KILL ALGILAMA
       const satirlar = mesaj.content.split("\n");
 
       for (const satir of satirlar) {
         const temiz = satir.trim();
         if (!temiz) continue;
 
-        // 🔥 KILL ALGILAMA (2k / 2 kill / 2 kills)
         const match = temiz.match(
-          /^(.+?)[\s:.-]+(\d+)\s*(k|kill|kills)?$/i
+          /^(.+?)[\s:.\-]+(\d+)\s*(k|kill|kills)?$/i
         );
         if (!match) continue;
 
         const isim = normalizeIsim(match[1]);
-        const kill = parseInt(match[2]);
+        const kill = parseInt(match[2], 10);
         if (isNaN(kill)) continue;
 
         if (!data.has(isim)) {
@@ -150,9 +153,10 @@ client.on("messageCreate", async (message) => {
       sonucList.push({ isim, ...d, para });
     }
 
-    // 🥇 EN ÇOK PARA ALAN ÜSTE
+    // 🥇 PARAYA GÖRE SIRALA
     sonucList.sort((a, b) => b.para - a.para);
 
+    // 📊 ÇIKTI
     let sonuc = "🏆 **STATE CONTROL BONUS** 🏆\n\n";
 
     sonucList.forEach((u, i) => {
