@@ -1,177 +1,85 @@
-const { Client, GatewayIntentBits, Partials } = require("discord.js");
+const { Client, GatewayIntentBits } = require("discord.js");
+const fs = require("fs");
 
-/* =======================
-   🔧 İSİM NORMALİZASYONU
-======================= */
-function normalizeIsim(str = "") {
-  return str
-    .replace(/[\u200B-\u200D\uFEFF]/g, "")
-    .replace(/\u00A0/g, " ")
-    .toLowerCase()
-    .trim()
-    .replace(/[^\p{L}\p{N} ]/gu, "")
-    .replace(/\s+/g, " ");
-}
-
-/* =======================
-   🔍 EN YAKIN ÜYE BUL
-======================= */
-function enYakinUyeyiBul(guild, isim) {
-  const hedef = normalizeIsim(isim);
-  return guild.members.cache.find(m =>
-    normalizeIsim(m.displayName).includes(hedef) ||
-    normalizeIsim(m.user.username).includes(hedef)
-  ) || null;
-}
-
-/* =======================
-   🤖 CLIENT
-======================= */
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildMembers,
-    GatewayIntentBits.GuildMessageReactions
-  ],
-  partials: [Partials.Message, Partials.Reaction, Partials.Channel]
+    GatewayIntentBits.MessageContent
+  ]
 });
 
-/* =======================
-   ⚙️ AYARLAR
-======================= */
-const YETKILI_ROL_IDS = [
-  "1432722610667655362",
-  "1454564464727949493"
-];
+const TOKEN = "BOT_TOKENİNİ_BURAYA_YAZ";
 
-const REFERANS_MESAJ_ID = "1467301119867879454";
-const KATILIM_UCRETI = 70000;
-const KILL_UCRETI = 40000;
+let data = {};
+let paid = {};
 
-/* =======================
-   🚀 READY
-======================= */
-client.once("ready", () => {
-  console.log(`✅ Bot aktif: ${client.user.tag}`);
-});
+if (fs.existsSync("./data.json")) data = JSON.parse(fs.readFileSync("./data.json"));
+if (fs.existsSync("./paid.json")) paid = JSON.parse(fs.readFileSync("./paid.json"));
 
-/* =======================
-   📩 BONUS KOMUTU
-======================= */
+function saveData() {
+  fs.writeFileSync("./data.json", JSON.stringify(data, null, 2));
+  fs.writeFileSync("./paid.json", JSON.stringify(paid, null, 2));
+}
+
+// kill algılama
+function extractKills(text) {
+  const regex = /(\d+)\s*(k|kill|kills|öldürme)/gi;
+  let total = 0;
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    total += parseInt(match[1]);
+  }
+  return total;
+}
+
 client.on("messageCreate", async (message) => {
-  try {
-    if (
-      message.author.bot ||
-      !message.guild ||
-      message.content !== "!bonushesapla"
-    ) return;
+  if (message.author.bot) return;
 
-    const member = await message.guild.members.fetch(message.author.id);
-    if (!member.roles.cache.some(r => YETKILI_ROL_IDS.includes(r.id))) {
-      return message.reply("❌ Bu komutu kullanamazsın.");
-    }
-
-    await message.guild.members.fetch();
-
-    let messages = [];
-    let lastId;
-    let found = false;
-
-    while (!found) {
-      const fetched = await message.channel.messages.fetch({ limit: 100, before: lastId });
-      if (!fetched.size) break;
-
-      for (const msg of fetched.values()) {
-        messages.push(msg);
-        if (msg.id === REFERANS_MESAJ_ID) {
-          found = true;
-          break;
-        }
-      }
-      lastId = fetched.last().id;
-    }
-
-    const referans = messages.find(m => m.id === REFERANS_MESAJ_ID);
-    if (!referans) return message.reply("❌ Referans mesaj yok.");
-
-    const data = new Map();
-
-    for (const msg of messages) {
-      if (msg.author.bot || msg.createdTimestamp <= referans.createdTimestamp) continue;
-
-      const yazar = normalizeIsim(msg.author.username);
-      if (!data.has(yazar)) data.set(yazar, { katilim: 0, kill: 0 });
-
-      // 📸 Mesaj + ekler = katılım
-      const katilimSayisi = 1 + msg.attachments.size;
-      data.get(yazar).katilim += katilimSayisi;
-
-      for (const satir of msg.content.split("\n")) {
-        const match = satir.match(/^(.+?)[\s:.-]+(\d{1,2})\s*(k|kill|kills)?$/i);
-        if (!match) continue;
-
-        const isim = normalizeIsim(match[1]);
-        const kill = Number(match[2]);
-        if (!kill || kill > 20) continue;
-
-        if (!data.has(isim)) data.set(isim, { katilim: 1, kill: 0 });
-
-        // ❗ kill varsa ama katılım yoksa 1 yap
-        if (data.get(isim).katilim === 0) data.get(isim).katilim = 1;
-
-        data.get(isim).kill += kill;
-      }
-    }
-
-    const sonucList = [...data.entries()].map(([isim, d]) => ({
-      isim,
-      ...d,
-      para: d.katilim * KATILIM_UCRETI + d.kill * KILL_UCRETI
-    })).sort((a, b) => b.para - a.para);
-
-    let sonuc = "🏆 **STATE CONTROL BONUS** 🏆\n\n";
-    sonucList.forEach((u, i) => {
-      const uye = enYakinUyeyiBul(message.guild, u.isim);
-      sonuc += `🔫 **${i + 1}.** ${uye ? `<@${uye.id}>` : u.isim} → **${u.katilim} katılım ${u.kill} kill : ${u.para.toLocaleString()}$**\n`;
-    });
-
-    const bonusMsg = await message.channel.send(sonuc);
-    await bonusMsg.react("✅");
-
-  } catch (e) {
-    console.error(e);
-    message.reply("❌ Hata oluştu.");
+  const userId = message.author.id;
+  if (!data[userId]) {
+    data[userId] = { join: 0, kill: 0 };
   }
+
+  // 📌 katılım
+  let participation = 1;
+
+  // 📷 fotoğraf sayısı
+  if (message.attachments.size > 0) {
+    participation += message.attachments.size - 1;
+  }
+
+  data[userId].join += participation;
+
+  // ☠️ kill
+  const kills = extractKills(message.content);
+  if (kills > 0) {
+    data[userId].kill += kills;
+
+    // kill var ama katılım yok durumu
+    if (participation === 0) {
+      data[userId].join += 1;
+    }
+  }
+
+  saveData();
 });
 
-/* =======================
-   🟢 ÖDENDİ
-======================= */
-client.on("messageReactionAdd", async (reaction, user) => {
-  try {
-    if (user.bot) return;
-    if (reaction.partial) await reaction.fetch();
-    if (reaction.message.partial) await reaction.message.fetch();
+// 📊 BONUS HESAPLA
+client.on("interactionCreate", async (interaction) => {
+  if (!interaction.isChatInputCommand()) return;
 
-    if (reaction.emoji.name !== "✅") return;
-    if (!reaction.message.content.includes("STATE CONTROL BONUS")) return;
+  if (interaction.commandName === "bonus") {
+    let results = [];
 
-    const member = await reaction.message.guild.members.fetch(user.id);
-    if (!member.roles.cache.some(r => YETKILI_ROL_IDS.includes(r.id))) return;
+    for (const id in data) {
+      if (paid[id]) continue;
 
-    if (reaction.message.content.includes("🟢 **ÖDENDİ**")) return;
+      const join = data[id].join;
+      const kill = data[id].kill;
+      const money = (join * 20000) + (kill * 10000);
 
-    await reaction.message.edit(reaction.message.content + "\n\n🟢 **ÖDENDİ**");
-    await reaction.message.reactions.removeAll();
+      results.push({ id, join, kill, money });
+    }
 
-  } catch (e) {
-    console.error("REACTION ERROR:", e);
-  }
-});
-
-/* =======================
-   🔑 LOGIN
-======================= */
-client.login(process.env.DISCORD_TOKEN);
+    results.sort((a, b) => b.money - a.money
