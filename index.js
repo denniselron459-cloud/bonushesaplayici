@@ -17,9 +17,6 @@ const client = new Client({
   ]
 });
 
-/* =======================
-   ⚙️ AYARLAR
-======================= */
 const YETKILI_ROL_IDS = [
   "1432722610667655362",
   "1454564464727949493"
@@ -28,135 +25,94 @@ const YETKILI_ROL_IDS = [
 const REFERANS_MESAJ_ID = "1470080051570671880";
 const KILL_UCRETI = 150000;
 
-/* =======================
-   🚀 READY
-======================= */
 client.once("ready", () => {
   console.log(`✅ Bot aktif: ${client.user.tag}`);
 });
 
-/* =======================
-   📩 KOMUT
-======================= */
 client.on(Events.MessageCreate, async (message) => {
   try {
     if (message.author.bot || !message.guild) return;
     if (message.content !== "!bonushesapla") return;
 
-    const yetkili = await message.guild.members.fetch(message.author.id);
-    if (!yetkili.roles.cache.some(r => YETKILI_ROL_IDS.includes(r.id))) {
-      return message.reply("❌ Bu komutu kullanamazsın.");
+    const member = await message.guild.members.fetch(message.author.id);
+    if (!member.roles.cache.some(r => YETKILI_ROL_IDS.includes(r.id))) {
+      return message.reply("❌ Yetkin yok.");
     }
 
-    /* =======================
-       📥 REFERANS ALTINI TEK SEFERDE AL
-    ======================= */
     const fetched = await message.channel.messages.fetch({
       limit: 100,
       after: REFERANS_MESAJ_ID
     });
 
-    if (!fetched.size) {
-      return message.reply("❌ Referans altında mesaj yok.");
-    }
-
-    /* =======================
-       📊 SADECE BIZZWAR KILL
-    ======================= */
-    const playerMap = new Map();
+    const players = new Map();
 
     for (const msg of fetched.values()) {
-      if (msg.author.bot) continue;
       if (!msg.content.toUpperCase().includes("BIZZWAR")) continue;
 
       for (const line of msg.content.split("\n")) {
         const match = line.match(/^<@!?(\d+)>\s+(\d+)$/);
         if (!match) continue;
 
-        const userId = match[1];
+        const id = match[1];
         const kill = Number(match[2]);
-
-        playerMap.set(
-          userId,
-          (playerMap.get(userId) || 0) + kill
-        );
+        players.set(id, (players.get(id) || 0) + kill);
       }
     }
 
-    if (!playerMap.size) {
-      return message.reply("❌ Bizzwar kill bulunamadı.");
+    if (!players.size) {
+      return message.reply("❌ Kill bulunamadı.");
     }
 
-    const players = [...playerMap.entries()]
-      .map(([userId, kills]) => ({
-        userId,
-        kills,
-        paid: false
-      }))
-      .sort((a, b) => b.kills - a.kills);
+    let paid = false;
 
-    /* =======================
-       🧾 TEK EMBED
-    ======================= */
     const buildEmbed = () => {
       let total = 0;
 
-      const desc = players.map((p, i) => {
-        const bonus = p.kills * KILL_UCRETI;
+      const desc = [...players.entries()].map(([id, kill], i) => {
+        const bonus = kill * KILL_UCRETI;
         total += bonus;
-
-        return `**${i + 1}.** <@${p.userId}>
-🔫 Kill: **${p.kills}**
+        return `**${i + 1}.** <@${id}>
+🔫 Kill: **${kill}**
 💰 Bonus: **${bonus.toLocaleString()}$**
-📌 Durum: ${p.paid ? "✅ **PAID**" : "❌ **Ödenmedi**"}`;
+📌 Durum: ${paid ? "✅ **PAID**" : "❌ **Ödenmedi**"}`;
       }).join("\n\n");
 
       return new EmbedBuilder()
-        .setTitle("🏆 BIZZWAR KILL BONUS DAĞITIMI")
-        .setColor(players.every(p => p.paid) ? "Green" : "Red")
+        .setTitle("🏆 BIZZWAR BONUS DAĞITIMI")
+        .setColor(paid ? "Green" : "Red")
         .setDescription(desc)
-        .setFooter({
-          text: `💰 TOPLAM DAĞITILACAK BONUS: ${total.toLocaleString()}$`
-        });
+        .setFooter({ text: `Toplam: ${total.toLocaleString()}$` });
     };
 
-    const buildButtons = () =>
-      players.map((p, i) =>
-        new ActionRowBuilder().addComponents(
-          new ButtonBuilder()
-            .setCustomId(`paid_${i}`)
-            .setLabel(`Paid → ${i + 1}`)
-            .setStyle(p.paid ? ButtonStyle.Success : ButtonStyle.Secondary)
-            .setDisabled(p.paid)
-        )
-      );
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("paid_all")
+        .setLabel("💰 Hepsini Paid Yap")
+        .setStyle(ButtonStyle.Success)
+        .setDisabled(paid)
+    );
 
     const sent = await message.channel.send({
       embeds: [buildEmbed()],
-      components: buildButtons()
+      components: [row]
     });
 
     const collector = sent.createMessageComponentCollector();
 
-    collector.on("collect", async (interaction) => {
-      const index = Number(interaction.customId.split("_")[1]);
-      if (players[index].paid) return interaction.deferUpdate();
+    collector.on("collect", async (i) => {
+      if (i.customId !== "paid_all") return;
+      paid = true;
 
-      players[index].paid = true;
-
-      await interaction.update({
+      await i.update({
         embeds: [buildEmbed()],
-        components: buildButtons()
+        components: []
       });
     });
 
   } catch (err) {
-    console.error("❌ GERÇEK HATA:", err);
+    console.error("❌ HATA:", err);
     message.reply("❌ Bir hata oluştu.");
   }
 });
 
-/* =======================
-   🔑 LOGIN
-======================= */
 client.login(process.env.DISCORD_TOKEN);
