@@ -17,6 +17,9 @@ const client = new Client({
   ]
 });
 
+/* =======================
+   ⚙️ AYARLAR
+======================= */
 const YETKILI_ROL_IDS = [
   "1432722610667655362",
   "1454564464727949493"
@@ -25,36 +28,41 @@ const YETKILI_ROL_IDS = [
 const REFERANS_MESAJ_ID = "1470080051570671880";
 const KILL_UCRETI = 150000;
 
+/* =======================
+   🚀 READY
+======================= */
 client.once("ready", () => {
   console.log(`✅ Bot aktif: ${client.user.tag}`);
 });
 
+/* =======================
+   📩 KOMUT
+======================= */
 client.on(Events.MessageCreate, async (message) => {
-  try {
-    if (message.author.bot || !message.guild) return;
-    if (message.content !== "!bonushesapla") return;
+  if (message.author.bot || !message.guild) return;
+  if (message.content !== "!bonushesapla") return;
 
-    const member = await message.guild.members.fetch(message.author.id);
-    if (!member.roles.cache.some(r => YETKILI_ROL_IDS.includes(r.id))) {
+  try {
+    const yetkili = await message.guild.members.fetch(message.author.id);
+    if (!yetkili.roles.cache.some(r => YETKILI_ROL_IDS.includes(r.id))) {
       return message.reply("❌ Yetkin yok.");
     }
 
-    const fetched = await message.channel.messages.fetch({
+    const msgs = await message.channel.messages.fetch({
       limit: 100,
       after: REFERANS_MESAJ_ID
     });
 
     const players = new Map();
 
-    for (const msg of fetched.values()) {
-      if (!msg.content.toUpperCase().includes("BIZZWAR")) continue;
-
+    for (const msg of msgs.values()) {
       for (const line of msg.content.split("\n")) {
         const match = line.match(/^<@!?(\d+)>\s+(\d+)$/);
         if (!match) continue;
 
         const id = match[1];
         const kill = Number(match[2]);
+
         players.set(id, (players.get(id) || 0) + kill);
       }
     }
@@ -71,15 +79,16 @@ client.on(Events.MessageCreate, async (message) => {
       const desc = [...players.entries()].map(([id, kill], i) => {
         const bonus = kill * KILL_UCRETI;
         total += bonus;
+
         return `**${i + 1}.** <@${id}>
 🔫 Kill: **${kill}**
 💰 Bonus: **${bonus.toLocaleString()}$**
-📌 Durum: ${paid ? "✅ **PAID**" : "❌ **Ödenmedi**"}`;
+📌 Durum: ${paid ? "✅ PAID" : "❌ Ödenmedi"}`;
       }).join("\n\n");
 
       return new EmbedBuilder()
         .setTitle("🏆 BIZZWAR BONUS DAĞITIMI")
-        .setColor(paid ? "Green" : "Red")
+        .setColor(paid ? 0x2ecc71 : 0xe74c3c)
         .setDescription(desc)
         .setFooter({ text: `Toplam: ${total.toLocaleString()}$` });
     };
@@ -89,7 +98,6 @@ client.on(Events.MessageCreate, async (message) => {
         .setCustomId("paid_all")
         .setLabel("💰 Hepsini Paid Yap")
         .setStyle(ButtonStyle.Success)
-        .setDisabled(paid)
     );
 
     const sent = await message.channel.send({
@@ -97,11 +105,15 @@ client.on(Events.MessageCreate, async (message) => {
       components: [row]
     });
 
-    const collector = sent.createMessageComponentCollector();
+    const collector = sent.createMessageComponentCollector({
+      time: 10 * 60 * 1000 // ⏱️ 10 dk
+    });
 
     collector.on("collect", async (i) => {
       if (i.customId !== "paid_all") return;
+
       paid = true;
+      collector.stop();
 
       await i.update({
         embeds: [buildEmbed()],
@@ -115,4 +127,12 @@ client.on(Events.MessageCreate, async (message) => {
   }
 });
 
+/* =======================
+   🔑 LOGIN
+======================= */
 client.login(process.env.DISCORD_TOKEN);
+
+/* =======================
+   🧠 RAILWAY KEEP ALIVE
+======================= */
+setInterval(() => {}, 1000);
