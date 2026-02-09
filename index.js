@@ -1,3 +1,4 @@
+const express = require("express");
 const {
   Client,
   GatewayIntentBits,
@@ -8,6 +9,19 @@ const {
   Events
 } = require("discord.js");
 
+/* =======================
+   🌐 HTTP SERVER (RAILWAY)
+======================= */
+const app = express();
+app.get("/", (req, res) => res.send("Bot aktif"));
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log("🌐 HTTP server aktif:", PORT);
+});
+
+/* =======================
+   🤖 DISCORD CLIENT
+======================= */
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -106,7 +120,7 @@ client.on(Events.MessageCreate, async (message) => {
     });
 
     const collector = sent.createMessageComponentCollector({
-      time: 10 * 60 * 1000 // ⏱️ 10 dk
+      time: 10 * 60 * 1000
     });
 
     collector.on("collect", async (i) => {
@@ -122,7 +136,7 @@ client.on(Events.MessageCreate, async (message) => {
     });
 
   } catch (err) {
-    console.error("❌ HATA:", err);
+    console.error(err);
     message.reply("❌ Bir hata oluştu.");
   }
 });
@@ -131,8 +145,3 @@ client.on(Events.MessageCreate, async (message) => {
    🔑 LOGIN
 ======================= */
 client.login(process.env.DISCORD_TOKEN);
-
-/* =======================
-   🧠 RAILWAY KEEP ALIVE
-======================= */
-setInterval(() => {}, 1000);
