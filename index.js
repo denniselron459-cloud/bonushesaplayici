@@ -1,39 +1,13 @@
-const { Client, GatewayIntentBits } = require("discord.js");
+const {
+  Client,
+  GatewayIntentBits,
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  Events
+} = require("discord.js");
 
-/* =======================
-   🔧 İSİM NORMALİZASYONU
-======================= */
-function normalizeIsim(str = "") {
-  return str
-    .replace(/[\u200B-\u200D\uFEFF]/g, "")
-    .replace(/\u00A0/g, " ")
-    .toLowerCase()
-    .trim()
-    .replace(/[^\p{L}\p{N} ]/gu, "")
-    .replace(/\s+/g, " ");
-}
-
-/* =======================
-   🔍 EN YAKIN ÜYE
-======================= */
-function enYakinUyeyiBul(guild, isim) {
-  const hedef = normalizeIsim(isim);
-
-  const adaylar = guild.members.cache.filter(m =>
-    normalizeIsim(m.displayName).includes(hedef) ||
-    normalizeIsim(m.user.username).includes(hedef)
-  );
-
-  if (!adaylar.size) return null;
-
-  return adaylar
-    .sort((a, b) => a.displayName.length - b.displayName.length)
-    .first();
-}
-
-/* =======================
-   🤖 CLIENT
-======================= */
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -51,8 +25,8 @@ const YETKILI_ROL_IDS = [
   "1454564464727949493"
 ];
 
-const REFERANS_MESAJ_ID = "1460991119251734707";
-const KILL_UCRETI = 35000;
+const REFERANS_MESAJ_ID = "1467279907766927588";
+const KILL_UCRETI = 150000;
 
 /* =======================
    🚀 READY
@@ -64,121 +38,119 @@ client.once("ready", () => {
 /* =======================
    📩 KOMUT
 ======================= */
-client.on("messageCreate", async (message) => {
-  try {
-    if (message.author.bot || !message.guild) return;
-    if (message.content !== "!bonushesapla") return;
+client.on(Events.MessageCreate, async (message) => {
+  if (message.author.bot || !message.guild) return;
+  if (message.content !== "!bonushesapla") return;
 
-    const yetkili = await message.guild.members.fetch(message.author.id);
-    if (!yetkili.roles.cache.some(r => YETKILI_ROL_IDS.includes(r.id))) {
-      return message.reply("❌ Bu komutu kullanamazsın.");
+  const yetkili = await message.guild.members.fetch(message.author.id);
+  if (!yetkili.roles.cache.some(r => YETKILI_ROL_IDS.includes(r.id))) {
+    return message.reply("❌ Bu komutu kullanamazsın.");
+  }
+
+  /* =======================
+     📥 REFERANS ALTINI AL
+  ======================= */
+  let allMessages = [];
+  let lastId = null;
+
+  while (true) {
+    const options = { limit: 100 };
+    options.after = lastId || REFERANS_MESAJ_ID;
+
+    const fetched = await message.channel.messages.fetch(options);
+    if (!fetched.size) break;
+
+    allMessages.push(...fetched.values());
+    lastId = fetched.last().id;
+  }
+
+  /* =======================
+     📊 BIZZWAR KILL TOPLA
+  ======================= */
+  const playerMap = new Map();
+
+  for (const msg of allMessages) {
+    if (msg.author.bot) continue;
+    if (!msg.content.toUpperCase().includes("BIZZWAR")) continue;
+
+    for (const line of msg.content.split("\n")) {
+      const match = line.match(/^<@!?(\d+)>\s+(\d+)$/);
+      if (!match) continue;
+
+      const userId = match[1];
+      const kill = Number(match[2]);
+
+      playerMap.set(userId, (playerMap.get(userId) || 0) + kill);
     }
+  }
 
-    await message.guild.members.fetch();
+  if (!playerMap.size) {
+    return message.reply("❌ Bizzwar kill bulunamadı.");
+  }
 
-    /* =======================
-       📥 MESAJLARI ÇEK
-    ======================= */
-    let tumMesajlar = [];
-    let lastId = null;
-    let bulundu = false;
+  const players = [...playerMap.entries()]
+    .map(([userId, kills]) => ({
+      userId,
+      kills,
+      paid: false
+    }))
+    .sort((a, b) => b.kills - a.kills);
 
-    while (!bulundu) {
-      const opt = { limit: 100 };
-      if (lastId) opt.before = lastId;
+  /* =======================
+     🧾 TEK EMBED
+  ======================= */
+  const buildEmbed = () => {
+    let total = 0;
 
-      const fetched = await message.channel.messages.fetch(opt);
-      if (!fetched.size) break;
+    const desc = players.map((p, i) => {
+      const bonus = p.kills * KILL_UCRETI;
+      total += bonus;
 
-      for (const msg of fetched.values()) {
-        if (BigInt(msg.id) <= BigInt(REFERANS_MESAJ_ID)) {
-          bulundu = true;
-          break;
-        }
-        tumMesajlar.push(msg);
-      }
-      lastId = fetched.last().id;
-    }
+      return `**${i + 1}.** <@${p.userId}>
+🔫 Kill: **${p.kills}**
+💰 Bonus: **${bonus.toLocaleString()}$**
+📌 Durum: ${p.paid ? "✅ **PAID**" : "❌ **Ödenmedi**"}`;
+    }).join("\n\n");
 
-    /* =======================
-       📊 HESAPLAMA
-    ======================= */
-    const killMap = new Map();
+    return new EmbedBuilder()
+      .setTitle("🏆 BIZZWAR WIN SONUCLARI")
+      .setColor(players.every(p => p.paid) ? "Green" : "Red")
+      .setDescription(desc)
+      .setFooter({
+        text: `💰 TOPLAM DAĞITILACAK BONUS: ${total.toLocaleString()}$`
+      });
+  };
 
-    for (const msg of tumMesajlar) {
-      if (msg.author.bot) continue;
-
-      for (const satir of msg.content.split("\n")) {
-        const temiz = satir.trim();
-        if (!temiz) continue;
-
-        const match = temiz.match(/(\d+)\s*$/);
-        if (!match) continue;
-
-        const kill = parseInt(match[1]);
-        if (isNaN(kill)) continue;
-
-        const isimParca = temiz.slice(0, match.index).trim();
-        if (!isimParca) continue;
-
-        const key = normalizeIsim(isimParca);
-        killMap.set(key, (killMap.get(key) || 0) + kill);
-      }
-    }
-
-    if (!killMap.size) {
-      return message.reply("❌ Kill bulunamadı.");
-    }
-
-    const sirali = [...killMap.entries()].sort((a, b) => b[1] - a[1]);
-
-    /* =======================
-       🏆 BAŞLIK
-    ======================= */
-    await message.channel.send("🏆 **WEAPON FACTORY KILLS** 🏆");
-
-    let toplamBonus = 0;
-
-    /* =======================
-       📤 LİSTE
-    ======================= */
-    for (let i = 0; i < sirali.length; i++) {
-      const [isim, kill] = sirali[i];
-      const para = kill * KILL_UCRETI;
-      toplamBonus += para;
-
-      const emoji =
-        i === 0 ? "🥇" :
-        i === 1 ? "🥈" :
-        i === 2 ? "🥉" : "🔫";
-
-      let gosterim = isim;
-
-      let uye = message.guild.members.cache.find(m =>
-        normalizeIsim(m.displayName) === isim ||
-        normalizeIsim(m.user.username) === isim
-      );
-
-      if (!uye) uye = enYakinUyeyiBul(message.guild, isim);
-      if (uye) gosterim = `<@${uye.id}>`;
-
-      await message.channel.send(
-        `${emoji} **${i + 1}.** ${gosterim}\n` +
-        `🔫 Kill: **${kill}** | 💰 **${para.toLocaleString()}$**`
-      );
-    }
-
-    /* =======================
-       💰 EN ALT TOPLAM
-    ======================= */
-    await message.channel.send(
-      `💰 **TOPLAM DAĞITILACAK BONUS:** ${toplamBonus.toLocaleString()}$`
+  const buildButtons = () =>
+    players.map((p, i) =>
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`paid_${i}`)
+          .setLabel(`Paid → ${i + 1}`)
+          .setStyle(p.paid ? ButtonStyle.Success : ButtonStyle.Secondary)
+          .setDisabled(p.paid)
+      )
     );
 
-  } catch (err) {
-    console.error("❌ HATA:", err);
-    message.reply("❌ Bir hata oluştu.");
-  }
+  /* ❗ SADECE BURADA SEND VAR */
+  const sent = await message.channel.send({
+    embeds: [buildEmbed()],
+    components: buildButtons()
+  });
+
+  const collector = sent.createMessageComponentCollector();
+
+  collector.on("collect", async (interaction) => {
+    const index = Number(interaction.customId.split("_")[1]);
+    if (players[index].paid) return interaction.deferUpdate();
+
+    players[index].paid = true;
+
+    await interaction.update({
+      embeds: [buildEmbed()],
+      components: buildButtons()
+    });
+  });
 });
 
 /* =======================
