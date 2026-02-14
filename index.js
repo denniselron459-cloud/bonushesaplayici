@@ -16,11 +16,11 @@ const client = new Client({
 const YETKILI_ROL_IDS = [
   "1432722610667655362",
   "1454564464727949493",
-   "1426979504559231117"
+  "1426979504559231117"
 ];
 
-const REFERANS_MESAJ_ID = "1470080051570671880"; // değiştirme
-const KILL_UCRETI = 150000;
+const REFERANS_MESAJ_ID = "1470085417683517521"; // değiştirme
+const KILL_UCRETI = 35000; // 🔥 35K BONUS
 
 /* =======================
    📦 GLOBAL
@@ -33,7 +33,7 @@ let sonucMesajId = null;
    READY
 ======================= */
 
-client.once("ready", () => {
+client.once("clientReady", () => {
   console.log(`✅ Bot aktif: ${client.user.tag}`);
 });
 
@@ -42,7 +42,7 @@ client.once("ready", () => {
 ======================= */
 
 function sonucMetniOlustur() {
-  let text = "🏆 **BIZZWAR WIN KILLS** 🏆\n\n";
+  let text = "🏆 **WEAPON FACTORY WIN KILLS** 🏆\n\n";
 
   aktifSonucData.forEach((u, i) => {
     const emoji =
