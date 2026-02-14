@@ -35,7 +35,7 @@ client.once("ready", () => {
 ======================= */
 
 function sonucMetniOlustur(liste) {
-  let text = "🏭 **WEAPON FACTORY WIN KILLS** 🏭\n\n";
+  let text = "🏆 **WEAPON FACTORY WIN KILLS** 🏆\n\n";
 
   liste.forEach((u, i) => {
     const emoji =
