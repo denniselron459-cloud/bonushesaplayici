@@ -77,7 +77,7 @@ function sonucMetniOlustur() {
 }
 
 /* =======================
-   📤 GÜVENLİ MESAJ BÖLME
+   📤 GÜVENLİ MESAJ GÜNCELLE
 ======================= */
 async function sonucuGuncelle(channel) {
 
@@ -96,7 +96,6 @@ async function sonucuGuncelle(channel) {
 
   if (current.length > 0) messages.push(current);
 
-  // Edit veya gönder
   for (let i = 0; i < messages.length; i++) {
 
     if (sonucMesajIds[i]) {
@@ -108,7 +107,6 @@ async function sonucuGuncelle(channel) {
     }
   }
 
-  // Fazla eski mesajları sil
   if (sonucMesajIds.length > messages.length) {
     for (let i = messages.length; i < sonucMesajIds.length; i++) {
       const msg = await channel.messages.fetch(sonucMesajIds[i]);
@@ -194,7 +192,9 @@ client.on("messageCreate", async (message) => {
       }
 
       const user = data.get(key);
-      user.katilim += msg.attachments.size;
+
+      // ✅ MESAJ BAŞINA 1 KATILIM
+      user.katilim += 1;
 
       for (const satir of msg.content.split("\n")) {
         const match = satir.match(/(\d{1,2})\s*(k|kill|kills)/i);
