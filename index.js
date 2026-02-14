@@ -19,7 +19,7 @@ const YETKILI_ROL_IDS = [
   "1426979504559231117"
 ];
 
-const REFERANS_MESAJ_ID = "1470085417683517521"; // değiştirme
+const REFERANS_MESAJ_ID = "1470080051570671880"; // değiştirme
 const KILL_UCRETI = 150000; // 🔥 150K BONUS
 
 /* =======================
