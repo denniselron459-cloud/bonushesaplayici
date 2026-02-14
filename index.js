@@ -19,7 +19,7 @@ const YETKILI_ROL_IDS = [
   "1426979504559231117"
 ];
 
-const REFERANS_MESAJ_ID = "1470085417683517521"; // değiştirme
+const REFERANS_MESAJ_ID = "1470077379538849994"; // değiştirme
 const KILL_UCRETI = 35000; // 🔥 35K BONUS
 
 /* =======================
@@ -42,7 +42,7 @@ client.once("clientReady", () => {
 ======================= */
 
 function sonucMetniOlustur() {
-  let text = "🏆 **WEAPON FACTORY WIN KILLS** 🏆\n\n";
+  let text = "🏆 **RATING BATTLE WIN KILLS** 🏆\n\n";
 
   aktifSonucData.forEach((u, i) => {
     const emoji =
