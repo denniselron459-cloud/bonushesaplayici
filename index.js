@@ -55,7 +55,8 @@ client.once("clientReady", () => {
    📝 SONUÇ METNİ
 ======================= */
 function sonucMetniOlustur() {
-  let text = "🏆 **STATE CONTROL BONUS** 🏆\n\n";
+  let lines = [];
+  lines.push("🏆 **STATE CONTROL BONUS** 🏆\n");
 
   aktifSonucData.forEach((u, i) => {
     const emoji =
@@ -63,40 +64,57 @@ function sonucMetniOlustur() {
       i === 1 ? "🥈" :
       i === 2 ? "🥉" : "🔫";
 
-    text += `${emoji} **${i + 1}.** ${u.tag}\n`;
-    text += `👥 Katılım: **${u.katilim}** | 🔫 Kill: **${u.kill}** | 💰 **${u.para.toLocaleString()}$** ${u.paid ? "✅" : ""}\n\n`;
+    lines.push(
+      `${emoji} **${i + 1}.** ${u.tag}\n` +
+      `👥 Katılım: **${u.katilim}** | 🔫 Kill: **${u.kill}** | 💰 **${u.para.toLocaleString()}$** ${u.paid ? "✅" : ""}\n`
+    );
   });
 
   const toplam = aktifSonucData.reduce((t, u) => t + u.para, 0);
-  text += `💰 **TOPLAM DAĞITILACAK BONUS:** ${toplam.toLocaleString()}$`;
+  lines.push(`\n💰 **TOPLAM DAĞITILACAK BONUS:** ${toplam.toLocaleString()}$`);
 
-  return text;
+  return lines;
 }
 
 /* =======================
-   📤 MESAJI GÜNCELLE
+   📤 GÜVENLİ MESAJ BÖLME
 ======================= */
-async function sonucuGuncelle(channel, content) {
-  const chunks = content.match(/[\s\S]{1,1900}/g) || [];
+async function sonucuGuncelle(channel) {
 
-  // Var olan mesajları edit et
-  for (let i = 0; i < chunks.length; i++) {
+  const lines = sonucMetniOlustur();
+  let messages = [];
+  let current = "";
+
+  for (const line of lines) {
+    if ((current + line).length > 1900) {
+      messages.push(current);
+      current = line;
+    } else {
+      current += line;
+    }
+  }
+
+  if (current.length > 0) messages.push(current);
+
+  // Edit veya gönder
+  for (let i = 0; i < messages.length; i++) {
+
     if (sonucMesajIds[i]) {
       const msg = await channel.messages.fetch(sonucMesajIds[i]);
-      await msg.edit(chunks[i]);
+      await msg.edit(messages[i]);
     } else {
-      const newMsg = await channel.send(chunks[i]);
+      const newMsg = await channel.send(messages[i]);
       sonucMesajIds.push(newMsg.id);
     }
   }
 
   // Fazla eski mesajları sil
-  if (sonucMesajIds.length > chunks.length) {
-    for (let i = chunks.length; i < sonucMesajIds.length; i++) {
+  if (sonucMesajIds.length > messages.length) {
+    for (let i = messages.length; i < sonucMesajIds.length; i++) {
       const msg = await channel.messages.fetch(sonucMesajIds[i]);
       await msg.delete().catch(() => {});
     }
-    sonucMesajIds = sonucMesajIds.slice(0, chunks.length);
+    sonucMesajIds = sonucMesajIds.slice(0, messages.length);
   }
 }
 
@@ -117,6 +135,7 @@ client.on("messageCreate", async (message) => {
        💳 PAID / UNPAID
     ======================= */
     if (komut === "!paid" || komut === "!unpaid") {
+
       const hedef = message.mentions.members.first();
       if (!hedef) return message.reply("❌ Kişi etiketle.");
 
@@ -125,7 +144,7 @@ client.on("messageCreate", async (message) => {
 
       kayit.paid = komut === "!paid";
 
-      await sonucuGuncelle(message.channel, sonucMetniOlustur());
+      await sonucuGuncelle(message.channel);
       return message.delete().catch(() => {});
     }
 
@@ -194,7 +213,7 @@ client.on("messageCreate", async (message) => {
     sonucList.sort((a, b) => b.para - a.para);
     aktifSonucData = sonucList;
 
-    await sonucuGuncelle(message.channel, sonucMetniOlustur());
+    await sonucuGuncelle(message.channel);
 
   } catch (err) {
     console.error("❌ HATA:", err);
