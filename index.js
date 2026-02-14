@@ -30,10 +30,11 @@ const client = new Client({
 ======================= */
 const YETKILI_ROL_IDS = [
   "1432722610667655362",
-  "1454564464727949493"
+  "1454564464727949493",
+  "1426979504559231117"
 ];
 
-const REFERANS_MESAJ_ID = "1467301119867879454";
+const REFERANS_MESAJ_ID = "1470079239817793743";
 const KATILIM_UCRETI = 70000;
 const KILL_UCRETI = 40000;
 
@@ -73,16 +74,29 @@ function sonucMetniOlustur() {
 }
 
 /* =======================
-   📤 UZUN MESAJ BÖLÜCÜ
+   📤 MESAJI GÜNCELLE
 ======================= */
-async function uzunMesajGonder(channel, content) {
-  sonucMesajIds = [];
+async function sonucuGuncelle(channel, content) {
+  const chunks = content.match(/[\s\S]{1,1900}/g) || [];
 
-  const chunks = content.match(/[\s\S]{1,1900}/g);
+  // Var olan mesajları edit et
+  for (let i = 0; i < chunks.length; i++) {
+    if (sonucMesajIds[i]) {
+      const msg = await channel.messages.fetch(sonucMesajIds[i]);
+      await msg.edit(chunks[i]);
+    } else {
+      const newMsg = await channel.send(chunks[i]);
+      sonucMesajIds.push(newMsg.id);
+    }
+  }
 
-  for (const chunk of chunks) {
-    const msg = await channel.send(chunk);
-    sonucMesajIds.push(msg.id);
+  // Fazla eski mesajları sil
+  if (sonucMesajIds.length > chunks.length) {
+    for (let i = chunks.length; i < sonucMesajIds.length; i++) {
+      const msg = await channel.messages.fetch(sonucMesajIds[i]);
+      await msg.delete().catch(() => {});
+    }
+    sonucMesajIds = sonucMesajIds.slice(0, chunks.length);
   }
 }
 
@@ -93,18 +107,16 @@ client.on("messageCreate", async (message) => {
   try {
     if (message.author.bot || !message.guild) return;
 
-    const args = message.content.split(" ");
-    const komut = args[0];
+    const komut = message.content.split(" ")[0];
 
     const yetkili = await message.guild.members.fetch(message.author.id);
     if (!yetkili.roles.cache.some(r => YETKILI_ROL_IDS.includes(r.id)))
       return;
 
     /* =======================
-       💳 PAID
+       💳 PAID / UNPAID
     ======================= */
     if (komut === "!paid" || komut === "!unpaid") {
-
       const hedef = message.mentions.members.first();
       if (!hedef) return message.reply("❌ Kişi etiketle.");
 
@@ -113,9 +125,7 @@ client.on("messageCreate", async (message) => {
 
       kayit.paid = komut === "!paid";
 
-      const fullText = sonucMetniOlustur();
-      await uzunMesajGonder(message.channel, fullText);
-
+      await sonucuGuncelle(message.channel, sonucMetniOlustur());
       return message.delete().catch(() => {});
     }
 
@@ -184,8 +194,7 @@ client.on("messageCreate", async (message) => {
     sonucList.sort((a, b) => b.para - a.para);
     aktifSonucData = sonucList;
 
-    const fullText = sonucMetniOlustur();
-    await uzunMesajGonder(message.channel, fullText);
+    await sonucuGuncelle(message.channel, sonucMetniOlustur());
 
   } catch (err) {
     console.error("❌ HATA:", err);
@@ -193,7 +202,4 @@ client.on("messageCreate", async (message) => {
   }
 });
 
-/* =======================
-   🔑 LOGIN
-======================= */
 client.login(process.env.DISCORD_TOKEN);
