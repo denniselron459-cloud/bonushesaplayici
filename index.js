@@ -19,38 +19,31 @@ const YETKILI_ROL_IDS = [
   "1426979504559231117"
 ];
 
-const REFERANS_MESAJ_ID = "1470081739622846535"; // değiştirme
-const KILL_UCRETI = 5000; // 🔥 5K BONUS
+const REFERANS_MESAJ_ID = "1470085417683517521";
+const KILL_UCRETI = 35000; // WEAPON FACTORY
 
-/* =======================
-   📦 GLOBAL
-======================= */
-
-let aktifSonucData = [];
 let sonucMesajId = null;
 
-/* =======================
-   READY
-======================= */
+/* ======================= */
 
-client.once("clientReady", () => {
+client.once("ready", () => {
   console.log(`✅ Bot aktif: ${client.user.tag}`);
 });
 
 /* =======================
-   SONUÇ METNİ
+   SONUÇ METNİ OLUŞTUR
 ======================= */
 
-function sonucMetniOlustur() {
-  let text = "🏆 **BIZZWAR LOSE KILLS** 🏆\n\n";
+function sonucMetniOlustur(liste) {
+  let text = "🏭 **WEAPON FACTORY WIN KILLS** 🏭\n\n";
 
-  aktifSonucData.forEach((u, i) => {
+  liste.forEach((u, i) => {
     const emoji =
       i === 0 ? "🥇" :
       i === 1 ? "🥈" :
       i === 2 ? "🥉" : "🔫";
 
-    text += `${emoji} ${u.mention} — ${u.kill} kill — ${u.para.toLocaleString()}$ ${u.paid ? "✅" : ""}\n`;
+    text += `${emoji} <@${u.userId}> — ${u.kill} kill — ${(u.kill * KILL_UCRETI).toLocaleString()}$ ${u.paid ? "✅" : ""}\n`;
   });
 
   return text;
@@ -61,6 +54,7 @@ function sonucMetniOlustur() {
 ======================= */
 
 client.on("messageCreate", async (message) => {
+
   if (message.author.bot || !message.guild) return;
 
   try {
@@ -77,13 +71,12 @@ client.on("messageCreate", async (message) => {
       if (!yetkiliMi)
         return message.reply("❌ Yetkin yok.");
 
-      await message.guild.members.fetch();
-
       let tumMesajlar = [];
       let lastId = null;
       let bulundu = false;
 
       while (!bulundu) {
+
         const opt = { limit: 100 };
         if (lastId) opt.before = lastId;
 
@@ -91,10 +84,12 @@ client.on("messageCreate", async (message) => {
         if (!fetched.size) break;
 
         for (const msg of fetched.values()) {
+
           if (BigInt(msg.id) <= BigInt(REFERANS_MESAJ_ID)) {
             bulundu = true;
             break;
           }
+
           tumMesajlar.push(msg);
         }
 
@@ -104,9 +99,11 @@ client.on("messageCreate", async (message) => {
       const killMap = new Map();
 
       for (const msg of tumMesajlar) {
+
         if (msg.author.bot) continue;
 
         for (const satir of msg.content.split("\n")) {
+
           const mentionMatch = satir.match(/<@!?(\d+)>/);
           if (!mentionMatch) continue;
 
@@ -124,21 +121,17 @@ client.on("messageCreate", async (message) => {
         return message.reply("❌ Geçerli veri bulunamadı.");
 
       const sirali = [...killMap.entries()]
-        .sort((a, b) => b[1] - a[1]);
-
-      aktifSonucData = [];
-
-      for (const [userId, kill] of sirali) {
-        aktifSonucData.push({
+        .sort((a, b) => b[1] - a[1])
+        .map(([userId, kill]) => ({
           userId,
-          mention: `<@${userId}>`,
           kill,
-          para: kill * KILL_UCRETI,
           paid: false
-        });
-      }
+        }));
 
-      const sonucMesaj = await message.channel.send(sonucMetniOlustur());
+      const sonucMesaj = await message.channel.send(
+        sonucMetniOlustur(sirali)
+      );
+
       sonucMesajId = sonucMesaj.id;
     }
 
@@ -146,41 +139,36 @@ client.on("messageCreate", async (message) => {
        !PAID
     ======================= */
 
-if (message.content.startsWith("!paid")) {
+    if (message.content.startsWith("!paid")) {
 
-  if (!yetkiliMi)
-    return message.reply("❌ Yetkin yok.");
+      if (!yetkiliMi)
+        return message.reply("❌ Yetkin yok.");
 
-  const hedef = message.mentions.users.first();
-  if (!hedef)
-    return message.reply("❌ Kullanıcı etiketle.");
+      const hedef = message.mentions.users.first();
+      if (!hedef)
+        return message.reply("❌ Kullanıcı etiketle.");
 
-  if (!sonucMesajId)
-    return message.reply("❌ Önce !bonushesapla çalıştır.");
+      if (!sonucMesajId)
+        return message.reply("❌ Önce !bonushesapla çalıştır.");
 
-  const mesaj = await message.channel.messages.fetch(sonucMesajId);
+      const mesaj = await message.channel.messages.fetch(sonucMesajId);
 
-  if (!mesaj)
-    return message.reply("❌ Sonuç mesajı bulunamadı.");
+      let yeniIcerik = mesaj.content;
 
-  let yeniIcerik = mesaj.content;
+      const regex = new RegExp(`(<@!?${hedef.id}>.*)`, "g");
+      const satir = yeniIcerik.match(regex);
 
-  const regex = new RegExp(`<@!?${hedef.id}>.*`, "g");
-  const satir = yeniIcerik.match(regex);
+      if (!satir)
+        return message.reply("❌ Bu kişi listede yok.");
 
-  if (!satir)
-    return message.reply("❌ Bu kişi listede yok.");
+      if (satir[0].includes("✅"))
+        return message.reply("⚠️ Zaten paid.");
 
-  if (satir[0].includes("✅"))
-    return message.reply("⚠️ Zaten paid.");
+      const guncelSatir = satir[0] + " ✅";
+      yeniIcerik = yeniIcerik.replace(satir[0], guncelSatir);
 
-  const guncelSatir = satir[0] + " ✅";
-  yeniIcerik = yeniIcerik.replace(satir[0], guncelSatir);
-
-  await mesaj.edit(yeniIcerik);
-
-  message.delete().catch(() => {});
-}
+      await mesaj.edit(yeniIcerik);
+      message.delete().catch(() => {});
     }
 
     /* =======================
@@ -196,21 +184,30 @@ if (message.content.startsWith("!paid")) {
       if (!hedef)
         return message.reply("❌ Kullanıcı etiketle.");
 
-      const kayit = aktifSonucData.find(x => x.userId === hedef.id);
-      if (!kayit)
-        return message.reply("❌ Bu kişi listede yok.");
-
-      kayit.paid = false;
+      if (!sonucMesajId)
+        return message.reply("❌ Önce !bonushesapla çalıştır.");
 
       const mesaj = await message.channel.messages.fetch(sonucMesajId);
-      await mesaj.edit(sonucMetniOlustur());
 
+      let yeniIcerik = mesaj.content;
+
+      const regex = new RegExp(`(<@!?${hedef.id}>.*)`, "g");
+      const satir = yeniIcerik.match(regex);
+
+      if (!satir)
+        return message.reply("❌ Bu kişi listede yok.");
+
+      const guncelSatir = satir[0].replace(" ✅", "");
+      yeniIcerik = yeniIcerik.replace(satir[0], guncelSatir);
+
+      await mesaj.edit(yeniIcerik);
       message.delete().catch(() => {});
     }
 
   } catch (err) {
     console.error("HATA:", err);
   }
+
 });
 
 client.login(process.env.DISCORD_TOKEN);
