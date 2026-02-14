@@ -19,8 +19,8 @@ const YETKILI_ROL_IDS = [
   "1426979504559231117"
 ];
 
-const REFERANS_MESAJ_ID = "1470080051570671880"; // değiştirme
-const KILL_UCRETI = 150000; // 🔥 150K BONUS
+const REFERANS_MESAJ_ID = "1470077379538849994"; // değiştirme
+const KILL_UCRETI = 35000; // 🔥 35K BONUS
 
 /* =======================
    📦 GLOBAL
@@ -42,7 +42,7 @@ client.once("clientReady", () => {
 ======================= */
 
 function sonucMetniOlustur() {
-  let text = "🏆 **BIZZWAR WIN KILLS** 🏆\n\n";
+  let text = "🏆 **RATING BATTLE WIN KILLS** 🏆\n\n";
 
   aktifSonucData.forEach((u, i) => {
     const emoji =
