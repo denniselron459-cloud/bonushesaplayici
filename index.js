@@ -1,21 +1,5 @@
 const { Client, GatewayIntentBits } = require("discord.js");
 
-/* =======================
-   🔧 İSİM NORMALİZASYONU
-======================= */
-function normalizeIsim(str = "") {
-  return str
-    .replace(/[\u200B-\u200D\uFEFF]/g, "")
-    .replace(/\u00A0/g, " ")
-    .toLowerCase()
-    .trim()
-    .replace(/[^\p{L}\p{N} ]/gu, "")
-    .replace(/\s+/g, " ");
-}
-
-/* =======================
-   🤖 CLIENT
-======================= */
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -28,31 +12,35 @@ const client = new Client({
 /* =======================
    ⚙️ AYARLAR
 ======================= */
+
 const YETKILI_ROL_IDS = [
   "1432722610667655362",
   "1454564464727949493",
-  "1426979504559231117"
+   "1426979504559231117"
 ];
 
-const REFERANS_MESAJ_ID = "1470080051570671880";
+const REFERANS_MESAJ_ID = "1470080051570671880"; // değiştirme
 const KILL_UCRETI = 150000;
 
 /* =======================
-   📦 GLOBAL DATA
+   📦 GLOBAL
 ======================= */
+
 let aktifSonucData = [];
 let sonucMesajId = null;
 
 /* =======================
-   🚀 READY
+   READY
 ======================= */
+
 client.once("ready", () => {
   console.log(`✅ Bot aktif: ${client.user.tag}`);
 });
 
 /* =======================
-   📊 SONUÇ MESAJI OLUŞTUR
+   SONUÇ METNİ
 ======================= */
+
 function sonucMetniOlustur() {
   let text = "🏆 **BIZZWAR WIN KILLS** 🏆\n\n";
 
@@ -62,30 +50,32 @@ function sonucMetniOlustur() {
       i === 1 ? "🥈" :
       i === 2 ? "🥉" : "🔫";
 
-    text += `${emoji} ${u.gosterim} — ${u.kill} kill — ${u.para.toLocaleString()}$ ${u.paid ? "✅" : ""}\n`;
+    text += `${emoji} ${u.mention} — ${u.kill} kill — ${u.para.toLocaleString()}$ ${u.paid ? "✅" : ""}\n`;
   });
 
   return text;
 }
 
 /* =======================
-   📩 KOMUTLAR
+   MESAJ EVENT
 ======================= */
-client.on("messageCreate", async (message) => {
-  try {
-    if (message.author.bot || !message.guild) return;
 
-    const yetkili = await message.guild.members.fetch(message.author.id);
-    const yetkiliMi = yetkili.roles.cache.some(r => YETKILI_ROL_IDS.includes(r.id));
+client.on("messageCreate", async (message) => {
+  if (message.author.bot || !message.guild) return;
+
+  try {
+
+    const uye = await message.guild.members.fetch(message.author.id);
+    const yetkiliMi = uye.roles.cache.some(r => YETKILI_ROL_IDS.includes(r.id));
 
     /* =======================
        !BONUSHESAPLA
     ======================= */
+
     if (message.content === "!bonushesapla") {
 
-      if (!yetkiliMi) {
+      if (!yetkiliMi)
         return message.reply("❌ Yetkin yok.");
-      }
 
       await message.guild.members.fetch();
 
@@ -117,69 +107,57 @@ client.on("messageCreate", async (message) => {
         if (msg.author.bot) continue;
 
         for (const satir of msg.content.split("\n")) {
-          const temiz = satir.trim();
-          if (!temiz) continue;
+          const mentionMatch = satir.match(/<@!?(\d+)>/);
+          if (!mentionMatch) continue;
 
-          const match = temiz.match(/(\d+)\s*$/);
-          if (!match) continue;
+          const userId = mentionMatch[1];
+          const sayi = satir.replace(/<@!?\d+>/, "").trim();
+          const kill = parseInt(sayi);
 
-          const kill = parseInt(match[1]);
           if (isNaN(kill)) continue;
 
-          const isimParca = temiz.slice(0, match.index).trim();
-          if (!isimParca) continue;
-
-          const key = normalizeIsim(isimParca);
-          killMap.set(key, (killMap.get(key) || 0) + kill);
+          killMap.set(userId, (killMap.get(userId) || 0) + kill);
         }
       }
 
-      if (!killMap.size) {
-        return message.reply("❌ Kill bulunamadı.");
-      }
+      if (!killMap.size)
+        return message.reply("❌ Geçerli veri bulunamadı.");
 
-      const sirali = [...killMap.entries()].sort((a, b) => b[1] - a[1]);
+      const sirali = [...killMap.entries()]
+        .sort((a, b) => b[1] - a[1]);
 
       aktifSonucData = [];
 
-      for (let i = 0; i < sirali.length; i++) {
-        const [isim, kill] = sirali[i];
-        const para = kill * KILL_UCRETI;
-
-        let uye = message.guild.members.cache.find(m =>
-          normalizeIsim(m.displayName) === isim ||
-          normalizeIsim(m.user.username) === isim
-        );
-
-        const gosterim = uye ? `<@${uye.id}>` : isim;
-
+      for (const [userId, kill] of sirali) {
         aktifSonucData.push({
-          gosterim,
+          userId,
+          mention: `<@${userId}>`,
           kill,
-          para,
+          para: kill * KILL_UCRETI,
           paid: false
         });
       }
 
-      const sonuc = await message.channel.send(sonucMetniOlustur());
-      sonucMesajId = sonuc.id;
+      const sonucMesaj = await message.channel.send(sonucMetniOlustur());
+      sonucMesajId = sonucMesaj.id;
     }
 
     /* =======================
        !PAID
     ======================= */
+
     if (message.content.startsWith("!paid")) {
 
-      if (!yetkiliMi) return message.reply("❌ Yetkin yok.");
+      if (!yetkiliMi)
+        return message.reply("❌ Yetkin yok.");
 
-      const uye = message.mentions.members.first();
-      if (!uye) return message.reply("❌ Kullanıcı etiketle.");
+      const hedef = message.mentions.users.first();
+      if (!hedef)
+        return message.reply("❌ Kullanıcı etiketle.");
 
-      const kayit = aktifSonucData.find(u =>
-        u.gosterim === `<@${uye.id}>`
-      );
-
-      if (!kayit) return message.reply("❌ Bu kişi listede yok.");
+      const kayit = aktifSonucData.find(x => x.userId === hedef.id);
+      if (!kayit)
+        return message.reply("❌ Bu kişi listede yok.");
 
       kayit.paid = true;
 
@@ -192,18 +170,19 @@ client.on("messageCreate", async (message) => {
     /* =======================
        !UNPAID
     ======================= */
+
     if (message.content.startsWith("!unpaid")) {
 
-      if (!yetkiliMi) return message.reply("❌ Yetkin yok.");
+      if (!yetkiliMi)
+        return message.reply("❌ Yetkin yok.");
 
-      const uye = message.mentions.members.first();
-      if (!uye) return message.reply("❌ Kullanıcı etiketle.");
+      const hedef = message.mentions.users.first();
+      if (!hedef)
+        return message.reply("❌ Kullanıcı etiketle.");
 
-      const kayit = aktifSonucData.find(u =>
-        u.gosterim === `<@${uye.id}>`
-      );
-
-      if (!kayit) return message.reply("❌ Bu kişi listede yok.");
+      const kayit = aktifSonucData.find(x => x.userId === hedef.id);
+      if (!kayit)
+        return message.reply("❌ Bu kişi listede yok.");
 
       kayit.paid = false;
 
@@ -215,11 +194,7 @@ client.on("messageCreate", async (message) => {
 
   } catch (err) {
     console.error("HATA:", err);
-    message.reply("❌ Bir hata oluştu.");
   }
 });
 
-/* =======================
-   🔑 LOGIN
-======================= */
 client.login(process.env.DISCORD_TOKEN);
