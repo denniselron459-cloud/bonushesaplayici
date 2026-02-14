@@ -146,25 +146,41 @@ client.on("messageCreate", async (message) => {
        !PAID
     ======================= */
 
-    if (message.content.startsWith("!paid")) {
+if (message.content.startsWith("!paid")) {
 
-      if (!yetkiliMi)
-        return message.reply("❌ Yetkin yok.");
+  if (!yetkiliMi)
+    return message.reply("❌ Yetkin yok.");
 
-      const hedef = message.mentions.users.first();
-      if (!hedef)
-        return message.reply("❌ Kullanıcı etiketle.");
+  const hedef = message.mentions.users.first();
+  if (!hedef)
+    return message.reply("❌ Kullanıcı etiketle.");
 
-      const kayit = aktifSonucData.find(x => x.userId === hedef.id);
-      if (!kayit)
-        return message.reply("❌ Bu kişi listede yok.");
+  if (!sonucMesajId)
+    return message.reply("❌ Önce !bonushesapla çalıştır.");
 
-      kayit.paid = true;
+  const mesaj = await message.channel.messages.fetch(sonucMesajId);
 
-      const mesaj = await message.channel.messages.fetch(sonucMesajId);
-      await mesaj.edit(sonucMetniOlustur());
+  if (!mesaj)
+    return message.reply("❌ Sonuç mesajı bulunamadı.");
 
-      message.delete().catch(() => {});
+  let yeniIcerik = mesaj.content;
+
+  const regex = new RegExp(`<@!?${hedef.id}>.*`, "g");
+  const satir = yeniIcerik.match(regex);
+
+  if (!satir)
+    return message.reply("❌ Bu kişi listede yok.");
+
+  if (satir[0].includes("✅"))
+    return message.reply("⚠️ Zaten paid.");
+
+  const guncelSatir = satir[0] + " ✅";
+  yeniIcerik = yeniIcerik.replace(satir[0], guncelSatir);
+
+  await mesaj.edit(yeniIcerik);
+
+  message.delete().catch(() => {});
+}
     }
 
     /* =======================
