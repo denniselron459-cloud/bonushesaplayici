@@ -33,7 +33,7 @@ const YETKILI_ROL_IDS = [
   "1454564464727949493"
 ];
 
-const REFERANS_MESAJ_ID = "1470079239817793743";
+const REFERANS_MESAJ_ID = "1467301119867879454";
 const KATILIM_UCRETI = 70000;
 const KILL_UCRETI = 40000;
 
@@ -41,12 +41,12 @@ const KILL_UCRETI = 40000;
    📦 GLOBAL
 ======================= */
 let aktifSonucData = [];
-let sonucMesajId = null;
+let sonucMesajIds = [];
 
 /* =======================
    🚀 READY
 ======================= */
-client.once("ready", () => {
+client.once("clientReady", () => {
   console.log(`✅ Bot aktif: ${client.user.tag}`);
 });
 
@@ -73,6 +73,20 @@ function sonucMetniOlustur() {
 }
 
 /* =======================
+   📤 UZUN MESAJ BÖLÜCÜ
+======================= */
+async function uzunMesajGonder(channel, content) {
+  sonucMesajIds = [];
+
+  const chunks = content.match(/[\s\S]{1,1900}/g);
+
+  for (const chunk of chunks) {
+    const msg = await channel.send(chunk);
+    sonucMesajIds.push(msg.id);
+  }
+}
+
+/* =======================
    📩 KOMUTLAR
 ======================= */
 client.on("messageCreate", async (message) => {
@@ -87,43 +101,26 @@ client.on("messageCreate", async (message) => {
       return;
 
     /* =======================
-       💳 !PAID
+       💳 PAID
     ======================= */
-    if (komut === "!paid") {
+    if (komut === "!paid" || komut === "!unpaid") {
+
       const hedef = message.mentions.members.first();
       if (!hedef) return message.reply("❌ Kişi etiketle.");
 
       const kayit = aktifSonucData.find(x => x.id === hedef.id);
       if (!kayit) return message.reply("❌ Bu kişi listede yok.");
 
-      kayit.paid = true;
+      kayit.paid = komut === "!paid";
 
-      const mesaj = await message.channel.messages.fetch(sonucMesajId);
-      await mesaj.edit(sonucMetniOlustur());
-
-      return message.delete().catch(() => {});
-    }
-
-    /* =======================
-       💳 !UNPAID
-    ======================= */
-    if (komut === "!unpaid") {
-      const hedef = message.mentions.members.first();
-      if (!hedef) return message.reply("❌ Kişi etiketle.");
-
-      const kayit = aktifSonucData.find(x => x.id === hedef.id);
-      if (!kayit) return message.reply("❌ Bu kişi listede yok.");
-
-      kayit.paid = false;
-
-      const mesaj = await message.channel.messages.fetch(sonucMesajId);
-      await mesaj.edit(sonucMetniOlustur());
+      const fullText = sonucMetniOlustur();
+      await uzunMesajGonder(message.channel, fullText);
 
       return message.delete().catch(() => {});
     }
 
     /* =======================
-       🧮 !BONUSHESAPLA
+       🧮 BONUSHESAPLA
     ======================= */
     if (komut !== "!bonushesapla") return;
 
@@ -185,11 +182,11 @@ client.on("messageCreate", async (message) => {
     }));
 
     sonucList.sort((a, b) => b.para - a.para);
-
     aktifSonucData = sonucList;
 
-    const sonucMesaj = await message.channel.send(sonucMetniOlustur());
-    sonucMesajId = sonucMesaj.id;
+    const fullText = sonucMetniOlustur();
+    await uzunMesajGonder(message.channel, fullText);
+
   } catch (err) {
     console.error("❌ HATA:", err);
     message.reply("❌ Bir hata oluştu.");
