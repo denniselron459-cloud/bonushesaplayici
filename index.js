@@ -26,7 +26,7 @@ const YETKILI_ROL_IDS = [
 const KANAL_CONFIG = {
 
   /* BIZZWAR LOSE */
-  "123456789000000001": {
+  "1465789812748583130": {
     tip: "mention",
     baslik: "🏆 **BIZZWAR LOSE KILLS** 🏆",
     referans: "1470081739622846535",
@@ -34,7 +34,7 @@ const KANAL_CONFIG = {
   },
 
   /* BIZZWAR WIN */
-  "123456789000000002": {
+  "1426947227208908850": {
     tip: "mention",
     baslik: "🏆 **BIZZWAR WIN KILLS** 🏆",
     referans: "1470080051570671880",
@@ -42,7 +42,7 @@ const KANAL_CONFIG = {
   },
 
   /* RATING */
-  "123456789000000003": {
+  "1435375574720712880": {
     tip: "mention",
     baslik: "🏆 **RATING BATTLE WIN KILLS** 🏆",
     referans: "1470077379538849994",
@@ -50,7 +50,7 @@ const KANAL_CONFIG = {
   },
 
   /* WEAPON FACTORY */
-  "123456789000000004": {
+  "1426946952502710423": {
     tip: "mention",
     baslik: "🏆 **WEAPON FACTORY WIN KILLS** 🏆",
     referans: "1470085417683517521",
@@ -58,7 +58,7 @@ const KANAL_CONFIG = {
   },
 
   /* STATE BIG ZONE */
-  "123456789000000005": {
+  "1454598540897554442": {
     tip: "state",
     baslik: "🏆 **STATE CONTROL BIG ZONE BONUS** 🏆",
     referans: "1467289527398699029",
@@ -67,7 +67,7 @@ const KANAL_CONFIG = {
   },
 
   /* STATE SMALL ZONE */
-  "123456789000000006": {
+  "1426947679103094824": {
     tip: "state",
     baslik: "🏆 **STATE CONTROL SMALL ZONE BONUS** 🏆",
     referans: "1470079239817793743",
