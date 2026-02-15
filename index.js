@@ -23,7 +23,6 @@ const YETKILI_ROL_IDS = [
 ======================= */
 const KANAL_CONFIG = {
 
-  /* BIZZWAR LOSE */
   "1465789812748583130": {
     tip: "mention",
     baslik: "🏆 **BIZZWAR LOSE KILLS** 🏆",
@@ -31,7 +30,6 @@ const KANAL_CONFIG = {
     killUcreti: 5000
   },
 
-  /* BIZZWAR WIN */
   "1426947227208908850": {
     tip: "mention",
     baslik: "🏆 **BIZZWAR WIN KILLS** 🏆",
@@ -39,7 +37,6 @@ const KANAL_CONFIG = {
     killUcreti: 150000
   },
 
-  /* RATING */
   "1435375574720712880": {
     tip: "mention",
     baslik: "🏆 **RATING BATTLE WIN KILLS** 🏆",
@@ -47,7 +44,6 @@ const KANAL_CONFIG = {
     killUcreti: 35000
   },
 
-  /* WEAPON FACTORY */
   "1426946952502710423": {
     tip: "mention",
     baslik: "🏆 **WEAPON FACTORY WIN KILLS** 🏆",
@@ -55,7 +51,6 @@ const KANAL_CONFIG = {
     killUcreti: 35000
   },
 
-  /* STATE BIG */
   "1454598540897554442": {
     tip: "state",
     baslik: "🏆 **STATE CONTROL BIG ZONE BONUS** 🏆",
@@ -64,7 +59,6 @@ const KANAL_CONFIG = {
     killUcreti: 50000
   },
 
-  /* STATE SMALL */
   "1426947679103094824": {
     tip: "state",
     baslik: "🏆 **STATE CONTROL SMALL ZONE BONUS** 🏆",
@@ -77,6 +71,21 @@ const KANAL_CONFIG = {
 
 let aktifSonucData = [];
 let sonucMesajId = null;
+
+/* =======================
+   UZUN MESAJ BÖLME
+======================= */
+async function uzunMesajGonder(channel, text) {
+
+  const max = 1900;
+  let sonMesaj = null;
+
+  for (let i = 0; i < text.length; i += max) {
+    sonMesaj = await channel.send(text.substring(i, i + max));
+  }
+
+  return sonMesaj;
+}
 
 /* =======================
    SONUÇ METNİ
@@ -185,7 +194,6 @@ client.on("messageCreate", async (message) => {
 
       if (msg.author.bot) continue;
 
-      /* ===== MENTION ===== */
       if (config.tip === "mention") {
 
         for (const satir of msg.content.split("\n")) {
@@ -202,10 +210,8 @@ client.on("messageCreate", async (message) => {
 
           data.get(id).kill += kill;
         }
-      }
 
-      /* ===== STATE ===== */
-      else {
+      } else {
 
         const id = msg.author.id;
 
@@ -243,7 +249,11 @@ client.on("messageCreate", async (message) => {
 
     aktifSonucData = sonucList;
 
-    const sonucMesaj = await message.channel.send(sonucMetniOlustur(config));
+    const sonucMesaj = await uzunMesajGonder(
+      message.channel,
+      sonucMetniOlustur(config)
+    );
+
     sonucMesajId = sonucMesaj.id;
 
   } catch (err) {
