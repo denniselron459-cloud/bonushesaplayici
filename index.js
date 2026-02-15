@@ -19,10 +19,8 @@ const YETKILI_ROL_IDS = [
 ];
 
 /* =======================
-   KANAL CONFIG
-   BURAYA GERÇEK KANAL ID YAZ
+   TÜM EVENTLER
 ======================= */
-
 const KANAL_CONFIG = {
 
   /* BIZZWAR LOSE */
@@ -57,7 +55,7 @@ const KANAL_CONFIG = {
     killUcreti: 35000
   },
 
-  /* STATE BIG ZONE */
+  /* STATE BIG */
   "1454598540897554442": {
     tip: "state",
     baslik: "🏆 **STATE CONTROL BIG ZONE BONUS** 🏆",
@@ -66,7 +64,7 @@ const KANAL_CONFIG = {
     killUcreti: 50000
   },
 
-  /* STATE SMALL ZONE */
+  /* STATE SMALL */
   "1426947679103094824": {
     tip: "state",
     baslik: "🏆 **STATE CONTROL SMALL ZONE BONUS** 🏆",
@@ -77,20 +75,16 @@ const KANAL_CONFIG = {
 
 };
 
-/* =======================
-   GLOBAL
-======================= */
-
 let aktifSonucData = [];
 let sonucMesajId = null;
 
 /* =======================
    SONUÇ METNİ
 ======================= */
-
 function sonucMetniOlustur(config) {
 
   let text = config.baslik + "\n\n";
+  let toplam = 0;
 
   aktifSonucData.forEach((u, i) => {
 
@@ -101,24 +95,30 @@ function sonucMetniOlustur(config) {
 
     if (config.tip === "mention") {
 
-      text += `${emoji} <@${u.id}> — ${u.kill} kill — ${(u.kill * config.killUcreti).toLocaleString()}$ ${u.paid ? "✅" : ""}\n`;
+      const para = u.kill * config.killUcreti;
+      toplam += para;
+
+      text += `${emoji} <@${u.id}> — ${u.kill} kill — ${para.toLocaleString()}$ ${u.paid ? "✅" : ""}\n`;
 
     } else {
 
+      toplam += u.para;
+
       text += `${emoji} <@${u.id}>\n`;
       text += `👥 Katılım: ${u.katilim} | 🔫 Kill: ${u.kill} | 💰 ${u.para.toLocaleString()}$ ${u.paid ? "✅" : ""}\n\n`;
-
     }
 
   });
+
+  text += `━━━━━━━━━━━━━━━━━━\n`;
+  text += `💰 **TOPLAM DAĞITILACAK BONUS:** ${toplam.toLocaleString()}$`;
 
   return text;
 }
 
 /* =======================
-   MESAJ EVENT
+   EVENT
 ======================= */
-
 client.on("messageCreate", async (message) => {
 
   if (message.author.bot || !message.guild) return;
@@ -132,8 +132,7 @@ client.on("messageCreate", async (message) => {
     const yetkiliMi = uye.roles.cache.some(r => YETKILI_ROL_IDS.includes(r.id));
     if (!yetkiliMi) return;
 
-    /* PAID / UNPAID */
-
+    /* ===== PAID ===== */
     if (message.content.startsWith("!paid") || message.content.startsWith("!unpaid")) {
 
       const hedef = message.mentions.members.first();
@@ -152,8 +151,7 @@ client.on("messageCreate", async (message) => {
       return message.delete().catch(()=>{});
     }
 
-    /* BONUS HESAPLA */
-
+    /* ===== BONUS HESAPLA ===== */
     if (message.content !== "!bonushesapla") return;
 
     let tumMesajlar = [];
@@ -187,6 +185,7 @@ client.on("messageCreate", async (message) => {
 
       if (msg.author.bot) continue;
 
+      /* ===== MENTION ===== */
       if (config.tip === "mention") {
 
         for (const satir of msg.content.split("\n")) {
@@ -203,10 +202,10 @@ client.on("messageCreate", async (message) => {
 
           data.get(id).kill += kill;
         }
+      }
 
-      } else {
-
-        if (!msg.attachments.size) continue;
+      /* ===== STATE ===== */
+      else {
 
         const id = msg.author.id;
 
@@ -217,25 +216,29 @@ client.on("messageCreate", async (message) => {
         user.katilim += 1;
 
         for (const satir of msg.content.split("\n")) {
+
           const match = satir.match(/(\d{1,2})\s*(k|kill)/i);
-          if (match)
-            user.kill += parseInt(match[1]);
+          if (match) {
+            const k = parseInt(match[1]);
+            if (!isNaN(k))
+              user.kill += k;
+          }
         }
       }
     }
 
+    if (!data.size)
+      return message.reply("❌ Bu event için geçerli veri bulunamadı.");
+
     let sonucList = [...data.values()];
 
-    if (config.tip === "state") {
-
+    if (config.tip === "mention") {
+      sonucList.sort((a,b)=> b.kill - a.kill);
+    } else {
       sonucList = sonucList.map(u => ({
         ...u,
         para: u.katilim * config.katilimUcreti + u.kill * config.killUcreti
       })).sort((a,b)=> b.para - a.para);
-
-    } else {
-
-      sonucList.sort((a,b)=> b.kill - a.kill);
     }
 
     aktifSonucData = sonucList;
@@ -249,8 +252,6 @@ client.on("messageCreate", async (message) => {
   }
 
 });
-
-/* ======================= */
 
 client.once("clientReady", () => {
   console.log("✅ Bot aktif:", client.user.tag);
