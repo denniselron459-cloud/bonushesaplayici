@@ -70,23 +70,25 @@ const KANAL_CONFIG = {
 };
 
 /* =======================
-   GLOBAL STORAGE (KANAL BAZLI)
+   GLOBAL STORAGE
 ======================= */
-let aktifSonucData = {}; // channelId -> liste
-let sonucMesajlari = {}; // channelId -> mesajId
+let aktifSonucData = {};       // channelId -> liste
+let sonucMesajlari = {};       // channelId -> [mesajId1, mesajId2...]
 
 /* =======================
    UZUN MESAJ GÖNDER
 ======================= */
 async function uzunMesajGonder(channel, text) {
+
   const max = 1900;
-  let sonMesaj = null;
+  const mesajIds = [];
 
   for (let i = 0; i < text.length; i += max) {
-    sonMesaj = await channel.send(text.substring(i, i + max));
+    const msg = await channel.send(text.substring(i, i + max));
+    mesajIds.push(msg.id);
   }
 
-  return sonMesaj;
+  return mesajIds;
 }
 
 /* =======================
@@ -143,7 +145,9 @@ client.on("messageCreate", async (message) => {
     const yetkiliMi = uye.roles.cache.some(r => YETKILI_ROL_IDS.includes(r.id));
     if (!yetkiliMi) return;
 
-    /* ===== PAID ===== */
+    /* =======================
+       PAID / UNPAID
+    ======================= */
     if (message.content.startsWith("!paid") || message.content.startsWith("!unpaid")) {
 
       const hedef = message.mentions.members.first();
@@ -157,16 +161,28 @@ client.on("messageCreate", async (message) => {
 
       kayit.paid = message.content.startsWith("!paid");
 
-      const msgId = sonucMesajlari[message.channel.id];
-      if (msgId) {
-        const msg = await message.channel.messages.fetch(msgId);
-        await msg.edit(sonucMetniOlustur(config, liste));
+      /* ESKİ MESAJLARI SİL */
+      const eskiMesajlar = sonucMesajlari[message.channel.id] || [];
+
+      for (const id of eskiMesajlar) {
+        const m = await message.channel.messages.fetch(id).catch(()=>null);
+        if (m) await m.delete().catch(()=>{});
       }
+
+      /* YENİDEN GÖNDER */
+      const yeniMesajlar = await uzunMesajGonder(
+        message.channel,
+        sonucMetniOlustur(config, liste)
+      );
+
+      sonucMesajlari[message.channel.id] = yeniMesajlar;
 
       return message.delete().catch(()=>{});
     }
 
-    /* ===== BONUS HESAPLA ===== */
+    /* =======================
+       BONUS HESAPLA
+    ======================= */
     if (message.content !== "!bonushesapla") return;
 
     let tumMesajlar = [];
@@ -255,12 +271,12 @@ client.on("messageCreate", async (message) => {
 
     aktifSonucData[message.channel.id] = sonucList;
 
-    const sonucMesaj = await uzunMesajGonder(
+    const mesajIds = await uzunMesajGonder(
       message.channel,
       sonucMetniOlustur(config, sonucList)
     );
 
-    sonucMesajlari[message.channel.id] = sonucMesaj.id;
+    sonucMesajlari[message.channel.id] = mesajIds;
 
   } catch (err) {
     console.error("GERÇEK HATA:", err);
