@@ -19,7 +19,7 @@ const YETKILI_ROL_IDS = [
 ];
 
 /* =======================
-   TÜM EVENTLER
+   EVENT CONFIG
 ======================= */
 const KANAL_CONFIG = {
 
@@ -69,14 +69,16 @@ const KANAL_CONFIG = {
 
 };
 
-let aktifSonucData = [];
-let sonucMesajId = null;
+/* =======================
+   GLOBAL STORAGE (KANAL BAZLI)
+======================= */
+let aktifSonucData = {}; // channelId -> liste
+let sonucMesajlari = {}; // channelId -> mesajId
 
 /* =======================
-   UZUN MESAJ BÖLME
+   UZUN MESAJ GÖNDER
 ======================= */
 async function uzunMesajGonder(channel, text) {
-
   const max = 1900;
   let sonMesaj = null;
 
@@ -90,12 +92,12 @@ async function uzunMesajGonder(channel, text) {
 /* =======================
    SONUÇ METNİ
 ======================= */
-function sonucMetniOlustur(config) {
+function sonucMetniOlustur(config, liste) {
 
   let text = config.baslik + "\n\n";
   let toplam = 0;
 
-  aktifSonucData.forEach((u, i) => {
+  liste.forEach((u, i) => {
 
     const emoji =
       i === 0 ? "🥇" :
@@ -147,14 +149,18 @@ client.on("messageCreate", async (message) => {
       const hedef = message.mentions.members.first();
       if (!hedef) return message.reply("❌ Kişi etiketle.");
 
-      const kayit = aktifSonucData.find(x => x.id === hedef.id);
+      const liste = aktifSonucData[message.channel.id];
+      if (!liste) return message.reply("❌ Önce !bonushesapla yap.");
+
+      const kayit = liste.find(x => x.id === hedef.id);
       if (!kayit) return message.reply("❌ Bu kişi listede yok.");
 
       kayit.paid = message.content.startsWith("!paid");
 
-      if (sonucMesajId) {
-        const msg = await message.channel.messages.fetch(sonucMesajId);
-        await msg.edit(sonucMetniOlustur(config));
+      const msgId = sonucMesajlari[message.channel.id];
+      if (msgId) {
+        const msg = await message.channel.messages.fetch(msgId);
+        await msg.edit(sonucMetniOlustur(config, liste));
       }
 
       return message.delete().catch(()=>{});
@@ -247,14 +253,14 @@ client.on("messageCreate", async (message) => {
       })).sort((a,b)=> b.para - a.para);
     }
 
-    aktifSonucData = sonucList;
+    aktifSonucData[message.channel.id] = sonucList;
 
     const sonucMesaj = await uzunMesajGonder(
       message.channel,
-      sonucMetniOlustur(config)
+      sonucMetniOlustur(config, sonucList)
     );
 
-    sonucMesajId = sonucMesaj.id;
+    sonucMesajlari[message.channel.id] = sonucMesaj.id;
 
   } catch (err) {
     console.error("GERÇEK HATA:", err);
