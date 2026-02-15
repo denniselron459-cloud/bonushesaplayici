@@ -39,7 +39,7 @@ const KANAL_CONFIG = {
   "KANAL_ID_2": {
     tip: "mention",
     baslik: "🏆 **BIZZWAR WIN KILLS** 🏆",
-    referans: "1470085417683517521",
+    referans: "1470080051570671880",
     killUcreti: 150000
   },
 
@@ -47,7 +47,7 @@ const KANAL_CONFIG = {
   "KANAL_ID_3": {
     tip: "mention",
     baslik: "🏆 **RATING BATTLE WIN KILLS** 🏆",
-    referans: "1470085417683517521",
+    referans: "1470077379538849994",
     killUcreti: 35000
   },
 
@@ -62,7 +62,7 @@ const KANAL_CONFIG = {
   /* STATE BIG ZONE */
   "KANAL_ID_5": {
     tip: "state",
-    baslik: "🏆 **STATE CONTROL BONUS** 🏆",
+    baslik: "🏆 **STATE CONTROL BIG ZONE BONUS** 🏆",
     referans: "1467289527398699029",
     katilimUcreti: 100000,
     killUcreti: 50000
@@ -71,7 +71,7 @@ const KANAL_CONFIG = {
   /* STATE SMALL ZONE */
   "KANAL_ID_6": {
     tip: "state",
-    baslik: "🏆 **STATE CONTROL BONUS** 🏆",
+    baslik: "🏆 **STATE CONTROL SMALL ZONE BONUS** 🏆",
     referans: "1470079239817793743",
     katilimUcreti: 70000,
     killUcreti: 40000
